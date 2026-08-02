@@ -1,0 +1,35 @@
+# ---- Clasp / Google Apps Script ----
+.clasprc.json
+.clasp.json
+
+# ---- Node / npm (if clasp is installed locally) ----
+node_modules/
+package-lock.json
+
+# ---- OS generated files ----
+desktop.ini
+Thumbs.db
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# ---- Editor / IDE files ----
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# ---- Temporary / build files ----
+*.tmp
+*.bak
+*.log
+dist/
+build/
