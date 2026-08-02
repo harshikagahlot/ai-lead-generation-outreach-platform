@@ -85,7 +85,7 @@ Personalized Outreach Generation
 
 Watch the project in action:
 
-[TODO: Add YouTube Demo Link]
+[**View the Live Demo on YouTube 🎥**](https://youtu.be/Qqnz0f8JtKs)
 
 ## Screenshots
 
