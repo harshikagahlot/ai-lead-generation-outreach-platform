@@ -14,15 +14,16 @@
 - [Business Impact](#business-impact)
 - [Challenges Solved](#challenges-solved)
 - [What I Learned](#what-i-learned)
-- [Demo & Screenshots](#demo--screenshots)
+- [Demo](#demo)
+- [Screenshots](#screenshots)
 - [Technologies Used](#technologies-used)
 - [Installation Guide](#installation-guide)
 - [Contact Information](#contact-information)
 
 ## Why I Built This
-I built this platform to solve a real business problem rather than just building another standard CRUD application. B2B sales teams and agencies waste countless hours on repetitive prospecting—manually clicking through Google Maps, inspecting websites for issues, hunting for contact emails, and copy-pasting generic outreach templates.
+I built this project after realizing how repetitive manual prospecting had become while learning business development. Researching businesses, checking websites, finding public emails, qualifying leads, and writing personalized outreach consumed significant time. 
 
-My goal was to engineer a system that automates the tedious research and data-entry phases of lead generation while keeping human judgment strictly in the loop. The platform handles the heavy lifting, but the user always reviews the final, highly personalized Gmail drafts before a single email is ever sent.
+I automated that workflow inside Google Workspace. Although it started as a personal productivity tool, the same workflow naturally applies to freelancers, agencies, consultants, startups, and B2B sales teams. The platform handles the heavy lifting, but the user always reviews the final, highly personalized Gmail drafts before a single email is ever sent.
 
 ## Solution Overview
 Operating natively within Google Sheets and Google Apps Script, the system orchestrates the entire top-of-funnel sales pipeline. It intelligently discovers businesses, evaluates their digital footprint, extracts public contact information, applies strict qualification filters, and leverages AI to draft consultative, problem-first outreach emails. 
@@ -58,10 +59,10 @@ Personalized Outreach Generation
 ```
 
 ## Business Impact
-- **Eliminates Repetitive Manual Work**: Automates the grueling process of manual lead discovery and data entry.
-- **Improves Outreach Quality**: Replaces generic, mass-email blasts with hyper-personalized, factual, and consultative messaging based on real observations.
-- **Shifts Focus to Conversations**: Empowers sales teams and agencies to spend their time actually speaking with qualified prospects rather than doing administrative research.
-- **Consultative Outreach**: Positions the sender as an expert offering a genuine solution to an operational problem, vastly improving response rates over traditional sales pitches.
+- **Primary Use Case**: Automating the grueling process of manual lead discovery and data entry.
+- **Who Could Use It**: Freelancers, agencies, consultants, startups, and B2B sales teams.
+- **What it Automates**: Researching businesses, checking websites, finding public emails, qualifying leads, and drafting personalized outreach.
+- **How it Improves Productivity**: Empowers users to spend their time actually speaking with qualified prospects rather than doing administrative research, while ensuring every outreach attempt is highly personalized, factual, and consultative rather than a generic mass-email blast.
 
 ## Challenges Solved
 - **Google Apps Script Execution Limits**: Implemented robust resume/batch processing to stay safely under Google's 6-minute execution limits for long-running jobs.
@@ -80,22 +81,28 @@ Personalized Outreach Generation
 - **Performance Optimization**: Managing timeouts, payload sizes, and execution efficiency in constrained environments.
 - **Building Consultative B2B Solutions**: Engineering tools that respect the end-user's workflow and focus on delivering business value.
 
-## Demo & Screenshots
+## Demo
 
-**[TODO: Insert Short Walkthrough Video Link Here]**
+Watch the project in action:
 
-**[TODO: Insert Demo GIF Here]**
+[TODO: Add YouTube Demo Link]
 
-**[TODO: Insert Architecture Image Here]**
+## Screenshots
 
 ### Main Menu
-*[TODO: Insert Screenshot of the custom Google Sheets menu]*
+![Main Menu](screenshots/main_menu.png)
 
-### Raw Data & Qualified Leads
-*[TODO: Insert Screenshot showing discovered businesses and qualified leads]*
+### Raw Data Sheet
+![Raw Data](screenshots/raw_data.png)
+
+### Qualified Leads Sheet
+![Qualified Leads](screenshots/qualified_leads.png)
+
+### Outreach Drafts Generation
+![Outreach Drafts](screenshots/outreach_drafts.png)
 
 ### Personalized Gmail Draft
-*[TODO: Insert Screenshot of a personalized draft sitting in the Gmail Drafts folder]*
+![Gmail Draft](screenshots/gmail_draft.png)
 
 ## Technologies Used
 - **Google Apps Script (V8 Runtime)**
