@@ -93,16 +93,16 @@ Watch the project in action:
 ![Main Menu](screenshots/main_menu.png)
 
 ### Raw Data Sheet
-![Raw Data](screenshots/raw_data.png)
+![Raw Data Sheet](screenshots/raw_data.png)
 
 ### Qualified Leads Sheet
-![Qualified Leads](screenshots/qualified_leads.png)
-
-### Outreach Drafts Generation
-![Outreach Drafts](screenshots/outreach_drafts.png)
+![Qualified Leads Sheet](screenshots/qualified_leads.png)
 
 ### Personalized Gmail Draft
-![Gmail Draft](screenshots/gmail_draft.png)
+![Personalized Gmail Draft](screenshots/gmail_draft.png)
+
+### Push to Gmail Result
+![Push to Gmail Result](screenshots/push_success.png)
 
 ## Technologies Used
 - **Google Apps Script (V8 Runtime)**
