@@ -1,52 +1,101 @@
-# AI-Lead Generation System
+# AI Lead Generation & Outreach Automation Platform
 
 [![Google Apps Script](https://img.shields.io/badge/Google%20Apps%20Script-V8-4285F4?logo=google&logoColor=white)](https://developers.google.com/apps-script)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Status: Active](https://img.shields.io/badge/Status-Active-success.svg)](#)
 
-*An automated, serverless B2B lead generation & outreach engine built entirely within Google Sheets and Google Apps Script.*
+*An automated, serverless B2B prospecting engine that discovers local businesses, researches their online presence, qualifies leads, and generates highly personalized outreach drafts directly inside Google Workspace.*
 
 ## Table of Contents
-- [Problem Statement](#problem-statement)
+- [Why I Built This](#why-i-built-this)
 - [Solution Overview](#solution-overview)
 - [Key Features](#key-features)
 - [High-Level Workflow](#high-level-workflow)
 - [Business Impact](#business-impact)
+- [Challenges Solved](#challenges-solved)
+- [What I Learned](#what-i-learned)
+- [Demo & Screenshots](#demo--screenshots)
 - [Technologies Used](#technologies-used)
 - [Installation Guide](#installation-guide)
-- [Screenshots](#screenshots)
-- [Future Improvements](#future-improvements)
 - [Contact Information](#contact-information)
 
-## Problem Statement
-Finding, qualifying, and reaching out to local businesses is a highly manual, time-consuming process. Sales teams and agencies often spend hours clicking through Google Maps, inspecting websites, hunting for contact emails, and writing repetitive outreach messages, leading to low efficiency and generic, ineffective emails.
+## Why I Built This
+I built this platform to solve a real business problem rather than just building another standard CRUD application. B2B sales teams and agencies waste countless hours on repetitive prospecting—manually clicking through Google Maps, inspecting websites for issues, hunting for contact emails, and copy-pasting generic outreach templates.
+
+My goal was to engineer a system that automates the tedious research and data-entry phases of lead generation while keeping human judgment strictly in the loop. The platform handles the heavy lifting, but the user always reviews the final, highly personalized Gmail drafts before a single email is ever sent.
 
 ## Solution Overview
-The AI-Lead Generation System automates the entire top-of-funnel sales process. Operating completely within Google Sheets, the system automatically discovers local businesses, evaluates their online presence, finds public contact information, qualifies high-potential leads, and drafts highly personalized, problem-first outreach emails directly into your Gmail Drafts folder.
+Operating natively within Google Sheets and Google Apps Script, the system orchestrates the entire top-of-funnel sales pipeline. It intelligently discovers businesses, evaluates their digital footprint, extracts public contact information, applies strict qualification filters, and leverages AI to draft consultative, problem-first outreach emails. 
 
 ## Key Features
-- **Automated Business Discovery**: Automatically finds local businesses based on target industry and location.
-- **Intelligent Website Analysis**: Evaluates the target business's online presence to understand their digital footprint.
-- **Contact Discovery**: Safely extracts publicly available contact information from business websites.
-- **Smart Lead Qualification**: Filters businesses based on strict criteria, ensuring only highly qualified leads are passed to the next stage.
-- **Consultative Email Generation**: Drafts personalized, context-aware emails that focus on operational friction rather than generic sales pitches.
-- **Seamless Gmail Integration**: Securely pushes generated emails directly to your Gmail Drafts folder for final review (never auto-sends).
+- **AI-assisted Business Discovery**
+- **Website Intelligence**
+- **Public Contact Discovery**
+- **Smart Lead Qualification**
+- **Personalized Outreach Generation**
+- **Gmail Draft Automation**
+- **Duplicate Prevention**
+- **Batch Processing & Resume Support**
 
 ## High-Level Workflow
-**Google Maps**
-➔ **Business Discovery**
-➔ **Website Analysis**
-➔ **Email Discovery**
-➔ **Lead Qualification**
-➔ **Personalized AI Email Generation**
-➔ **Gmail Draft Creation**
+
+```text
+       Google Maps API
+              ↓
+      Business Discovery
+              ↓
+     Website Intelligence
+              ↓
+    Public Email Discovery
+              ↓
+      Lead Qualification
+              ↓
+Personalized Outreach Generation
+              ↓
+        Google Sheets
+              ↓
+         Gmail Drafts
+```
 
 ## Business Impact
-- **Who it helps**: Agencies, freelancers, and B2B sales teams targeting local businesses.
-- **Problems it solves**: Eliminates the manual grunt work of lead generation, data entry, and writing repetitive emails.
-- **Manual vs. Automated Workflow**: Reduces a process that typically takes hours of manual clicking and typing into a background process that runs automatically while you focus on high-value tasks.
-- **Time Savings**: Saves an estimated 10-15 minutes of manual research and writing *per lead*.
-- **Improved Outreach Efficiency**: Ensures every outreach attempt is highly personalized, factual, and consultative, significantly improving response rates compared to mass email blasts.
+- **Eliminates Repetitive Manual Work**: Automates the grueling process of manual lead discovery and data entry.
+- **Improves Outreach Quality**: Replaces generic, mass-email blasts with hyper-personalized, factual, and consultative messaging based on real observations.
+- **Shifts Focus to Conversations**: Empowers sales teams and agencies to spend their time actually speaking with qualified prospects rather than doing administrative research.
+- **Consultative Outreach**: Positions the sender as an expert offering a genuine solution to an operational problem, vastly improving response rates over traditional sales pitches.
+
+## Challenges Solved
+- **Google Apps Script Execution Limits**: Implemented robust resume/batch processing to stay safely under Google's 6-minute execution limits for long-running jobs.
+- **Batch Processing**: Engineered a resilient background worker system to continuously process large lists of discovered leads.
+- **Duplicate Prevention**: Built mechanisms to ensure businesses are never processed twice and duplicate drafts are never created.
+- **Public Email Validation**: Designed strict filters to reject malformed emails, placeholder templates, and internal tracking addresses.
+- **Gmail Draft Synchronization**: Synchronized spreadsheet records directly with the Gmail API safely and securely.
+- **API Integrations**: Seamlessly connected Google Maps, Gmail, and Google Sheets without external servers.
+
+## What I Learned
+- **API Integrations**: Deepening my understanding of RESTful connections and rate limiting.
+- **Google Apps Script (V8)**: Leveraging a serverless ecosystem for business automation.
+- **Workflow Automation**: Orchestrating complex, multi-step asynchronous data pipelines.
+- **AI-assisted Business Processes**: Using deterministic personalization logic to simulate high-touch human research.
+- **Data Validation**: Sanitizing and structuring messy, real-world web data.
+- **Performance Optimization**: Managing timeouts, payload sizes, and execution efficiency in constrained environments.
+- **Building Consultative B2B Solutions**: Engineering tools that respect the end-user's workflow and focus on delivering business value.
+
+## Demo & Screenshots
+
+**[TODO: Insert Short Walkthrough Video Link Here]**
+
+**[TODO: Insert Demo GIF Here]**
+
+**[TODO: Insert Architecture Image Here]**
+
+### Main Menu
+*[TODO: Insert Screenshot of the custom Google Sheets menu]*
+
+### Raw Data & Qualified Leads
+*[TODO: Insert Screenshot showing discovered businesses and qualified leads]*
+
+### Personalized Gmail Draft
+*[TODO: Insert Screenshot of a personalized draft sitting in the Gmail Drafts folder]*
 
 ## Technologies Used
 - **Google Apps Script (V8 Runtime)**
@@ -62,71 +111,28 @@ The AI-Lead Generation System automates the entire top-of-funnel sales process. 
 - Node.js (v16.x or newer)
 - A Google account with access to Google Sheets and Gmail
 
-### Setup Instructions
-1. Install the Google Clasp CLI:
+### Setup
+1. **Install Clasp:**
    ```bash
    npm install -g @google/clasp
    ```
-2. Authenticate Clasp with your Google account:
+2. **Login & Clone:**
    ```bash
    clasp login
+   git clone https://github.com/harshikagahlot/ai-lead-generation-outreach-platform.git
+   cd ai-lead-generation-outreach-platform
    ```
-3. Clone this repository:
-   ```bash
-   git clone <your-repo-url>
-   cd AI-Lead-Generation-System
-   ```
-4. Create a new Google Sheet, open **Extensions > Apps Script**, and copy your Script ID from **Project Settings**. 
-5. Update `.clasp.json` with your Script ID:
-   ```json
-   {
-     "scriptId": "YOUR_APPS_SCRIPT_ID_HERE",
-     "rootDir": "."
-   }
-   ```
-6. Push the code to Google Apps Script:
+3. **Connect to Apps Script:**
+   Create a new Google Sheet, open **Extensions > Apps Script**, and copy your Script ID from **Project Settings**. Update `.clasp.json` with your Script ID.
+4. **Deploy:**
    ```bash
    clasp push
    ```
-
-### Required APIs
-Ensure the following Google Cloud services are enabled in your Google Cloud Project:
-- Google Places API (New) (Requires an active API Key)
-- Google Sheets API
-- Google Drive API
-- Gmail API
-
-### How to Run the Project
-1. Open the Google Spreadsheet.
-2. From the custom menu, click **Lead Generator > Initialize Workbook**.
-3. In the generated `Settings` sheet, add your **Google Places API Key** and outreach details (Your Name, Company).
-4. Run **Lead Generator > Generate Leads** to begin discovering and qualifying businesses!
-
-## Screenshots
-
-### Main Menu
-*(Please insert screenshot of the custom Google Sheets menu here)*
-
-### Raw Data Sheet
-*(Please insert screenshot showing discovered businesses before qualification here)*
-
-### Qualified Leads Sheet
-*(Please insert screenshot showing qualified leads with their extracted information here)*
-
-### Gmail Draft Example
-*(Please insert screenshot of a personalized draft sitting in your Gmail Drafts folder here)*
-
-### Overall Workflow
-*(Please insert screenshot or diagram of the workflow in action here)*
-
-## Future Improvements
-- Multi-threaded lead processing
-- Advanced analytics and reporting dashboards
-- CRM integration capabilities
-- Enhanced geographical targeting logic
+5. **Run:**
+   Refresh your Google Sheet, use the new **Lead Generator > Initialize Workbook** menu, enter your API key in the generated Settings tab, and start generating leads!
 
 ## Contact Information
 - **Name**: Harshika Gahlot
 - **Email**: harshikagahlot01@gmail.com
-- **LinkedIn**: [Your LinkedIn Profile URL]
-- **GitHub**: [Your GitHub Profile URL]
+- **GitHub**: [https://github.com/harshikagahlot](https://github.com/harshikagahlot)
+- **LinkedIn**: [TODO: Add LinkedIn Profile URL]
