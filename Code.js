@@ -94,13 +94,27 @@ function buildLeadFromPlace(details, industry) {
   const websiteUri = details.websiteUri || '';
   const analysis = analyzeWebsite(websiteUri);
   const emailResult = findPublicEmail(websiteUri, analysis.html);
+  const emailType = emailResult.type || '';
+  const recommendedChannel = emailType === 'Named Person' ? 'Email' : (details.nationalPhoneNumber ? 'Phone' : 'None');
+
+  const rawNotes = analysis.flags ? analysis.flags.join('; ') : '';
+  const tempLead = {
+    websiteStatus: analysis.status,
+    rating: details.rating,
+    reviewCount: details.userRatingCount,
+    notes: rawNotes
+  };
+
+  const readiness = computeOutreachReadiness(tempLead, emailType, recommendedChannel);
 
   const score = computeLeadScore({
     websiteStatus: analysis.status,
     hasEmail: !!emailResult.email,
     rating: details.rating,
     reviewCount: details.userRatingCount,
-    hasRecentReview: false // Places (New) review timestamps could be wired in here later
+    hasRecentReview: false, // Places (New) review timestamps could be wired in here later
+    emailType: emailType,
+    readinessScore: readiness.score
   });
 
   return {
@@ -112,6 +126,10 @@ function buildLeadFromPlace(details, industry) {
     websiteStatus: analysis.status,
     email: emailResult.email,
     emailSourceUrl: emailResult.sourceUrl,
+    emailType: emailType,
+    recommendedChannel: recommendedChannel,
+    readinessScore: readiness.score,
+    readinessNotes: readiness.notes,
     score: score,
     rating: details.rating || '',
     reviewCount: details.userRatingCount || '',
@@ -342,7 +360,9 @@ function menuFilterQualifiedLeads() {
     if (qualification.qualified) {
       qualifiedRows.push([
         lead.name, lead.industry, lead.owner || '', lead.email, lead.phone,
-        lead.website || '', lead.websiteStatus, lead.score, lead.rating || '',
+        lead.website || '', lead.websiteStatus, lead.emailType || '',
+        lead.recommendedChannel || '', lead.readinessScore || '', lead.readinessNotes || '',
+        lead.score, lead.rating || '',
         lead.reviewCount || '', lead.address, lead.mapsUrl || '', lead.notes || '',
         lead.placeId
       ]);
@@ -370,7 +390,8 @@ function menuFilterQualifiedLeads() {
  */
 function mapRawRowToLead(row) {
   const idx = (name) => RAW_HEADERS.indexOf(name);
-  return {
+  
+  const lead = {
     name: row[idx('Business Name')],
     industry: row[idx('Industry')],
     address: row[idx('Address')],
@@ -378,7 +399,6 @@ function mapRawRowToLead(row) {
     website: row[idx('Website')],
     websiteStatus: row[idx('Website Status')],
     email: row[idx('Email')],
-    score: row[idx('Lead Score')],
     rating: row[idx('Rating')],
     reviewCount: row[idx('Review Count')],
     mapsUrl: row[idx('Google Maps URL')],
@@ -386,6 +406,25 @@ function mapRawRowToLead(row) {
     owner: '',
     notes: row[idx('Notes')] || ''
   };
+
+  lead.emailType = classifyEmail(lead.email);
+  lead.recommendedChannel = lead.emailType === 'Named Person' ? 'Email' : (lead.phone ? 'Phone' : 'None');
+  
+  const readiness = computeOutreachReadiness(lead, lead.emailType, lead.recommendedChannel);
+  lead.readinessScore = readiness.score;
+  lead.readinessNotes = readiness.notes;
+
+  lead.score = computeLeadScore({
+    websiteStatus: lead.websiteStatus,
+    hasEmail: !!lead.email,
+    rating: lead.rating,
+    reviewCount: lead.reviewCount,
+    hasRecentReview: false,
+    emailType: lead.emailType,
+    readinessScore: lead.readinessScore
+  });
+
+  return lead;
 }
 
 /** Menu action: exports Qualified_Leads to a CSV file in Google Drive. */

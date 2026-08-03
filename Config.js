@@ -40,7 +40,8 @@ const RAW_HEADERS = [
 
 const QUALIFIED_HEADERS = [
   'Business Name', 'Industry', 'Owner', 'Email', 'Phone', 'Website',
-  'Website Status', 'Lead Score', 'Rating', 'Reviews', 'Address',
+  'Website Status', 'Email Type', 'Recommended Channel', 'Readiness Score', 'Readiness Notes',
+  'Lead Score', 'Rating', 'Reviews', 'Address',
   'Google Maps URL', 'Notes', 'Place ID'
 ];
 
@@ -53,7 +54,7 @@ const LOG_HEADERS = [
 
 const DRAFT_HEADERS = [
   'Business Name', 'Industry', 'City', 'Email', 'Phone', 'Website Status',
-  'Subject', 'Email Draft', 'Status', 'Place ID', 'Gmail Draft ID'
+  'Recommended Channel', 'Subject', 'Email Draft', 'Status', 'Place ID', 'Gmail Draft ID'
 ];
 
 // ---- Website classification thresholds (outdated-flag counts) ----
@@ -85,7 +86,9 @@ const SCORING_RULES = {
   HAS_EMAIL: 20,
   RATING_ABOVE_4_5: 10,
   REVIEWS_50_PLUS: 10,
-  RECENT_REVIEW: 5
+  RECENT_REVIEW: 5,
+  NAMED_PERSON: 15,
+  HIGH_READINESS: 20
 };
 
 // ---- Default settings (used to seed the Settings sheet on first run) ----

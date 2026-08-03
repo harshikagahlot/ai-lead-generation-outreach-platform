@@ -24,6 +24,16 @@ const EMAIL_CANDIDATE_PATHS = [
 
 const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
 
+const GENERIC_EMAIL_PATTERN = /^(info|contact|office|hello|support|sales|admin|team|hi|mail|reception|bookings|service|billing|help|hr)@/i;
+
+/**
+ * Classifies an email as a Named Person (high priority) or a Generic Inbox (low priority).
+ */
+function classifyEmail(email) {
+  if (!email) return '';
+  return GENERIC_EMAIL_PATTERN.test(email) ? 'Generic Inbox' : 'Named Person';
+}
+
 /**
  * Known placeholder/template emails left behind by website builders when a
  * business never replaces the demo contact info. Matching any of these
@@ -74,16 +84,16 @@ function isPlaceholderEmail(email) {
  * Tries to find a public email for a business.
  * @param {string} websiteUrl - normalized site URL (may be blank if no site)
  * @param {string} homepageHtml - HTML already fetched for the homepage, if any
- * @returns {{email: string, sourceUrl: string}}
+ * @returns {{email: string, sourceUrl: string, type: string}}
  */
 function findPublicEmail(websiteUrl, homepageHtml) {
-  if (!websiteUrl) return { email: '', sourceUrl: '' };
+  if (!websiteUrl) return { email: '', sourceUrl: '', type: '' };
 
   const origin = getOrigin(normalizeUrl(websiteUrl));
 
   // Check homepage HTML we already have before spending more fetches.
   const homepageEmail = extractEmail(homepageHtml);
-  if (homepageEmail) return { email: homepageEmail, sourceUrl: normalizeUrl(websiteUrl) };
+  if (homepageEmail) return { email: homepageEmail, sourceUrl: normalizeUrl(websiteUrl), type: classifyEmail(homepageEmail) };
 
   // Fetch all candidate sub-pages in ONE parallel batch instead of one at a
   // time — this is what was taking up to ~11 sequential round-trips (many
@@ -103,20 +113,20 @@ function findPublicEmail(websiteUrl, homepageHtml) {
   try {
     responses = UrlFetchApp.fetchAll(requests);
   } catch (e) {
-    return { email: '', sourceUrl: '' }; // batch fetch itself failed (rare) — treat as no email found
+    return { email: '', sourceUrl: '', type: '' }; // batch fetch itself failed (rare) — treat as no email found
   }
 
   for (let i = 0; i < responses.length; i++) {
     try {
       if (responses[i].getResponseCode() >= 400) continue;
       const email = extractEmail(responses[i].getContentText());
-      if (email) return { email: email, sourceUrl: requests[i].url };
+      if (email) return { email: email, sourceUrl: requests[i].url, type: classifyEmail(email) };
     } catch (e) {
       continue;
     }
   }
 
-  return { email: '', sourceUrl: '' };
+  return { email: '', sourceUrl: '', type: '' };
 }
 
 /**

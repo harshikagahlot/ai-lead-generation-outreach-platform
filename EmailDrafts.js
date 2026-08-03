@@ -158,6 +158,14 @@ function getRandomItem(arr) {
  * Builds { subject, body } for one lead using the new randomized template structure.
  */
 function buildEmailDraft(lead, settings) {
+  // Readiness Check
+  if (lead.readinessScore < 50) {
+    return {
+      subject: 'Needs Review',
+      body: 'This lead needs more research or a different outreach channel before contacting.\n\nReadiness Notes: ' + (lead.readinessNotes || '')
+    };
+  }
+
   const ownerLine = lead.owner ? lead.owner : 'there';
   const senderName = settings[YOUR_NAME_SETTING] || 'Harshika Gahlot';
   
@@ -169,75 +177,42 @@ function buildEmailDraft(lead, settings) {
     ? "there isn't a dedicated website for the business yet"
     : getStrongestObservation(lead.notes, lead.websiteStatus);
 
-  const frictionExamples = getIndustryFrictionExamples(lead.industry);
   const businessName = lead.name || 'your business';
 
-  // Randomization Arrays
-  const openings = [
-    "I hope you're doing well.",
-    "I hope you're having a great week.",
-    "Hope you're having a good day."
-  ];
-
-  const introTransitions = [
-    "My name is " + senderName + ", and I'm learning business development through practical outreach by researching real businesses and understanding how they operate.",
-    "I'm " + senderName + ", and I'm currently learning business development by researching real local businesses to understand how they operate.",
-    "I'm " + senderName + ". I focus on business development and AI automation, and I reach out to real businesses to learn how they operate rather than sending mass emails."
-  ];
-
-  let observationTransitions;
+  let openingLine;
   if (isGoodOrExcellent) {
-    observationTransitions = [
+    openingLine = getRandomItem([
       "While looking into " + businessName + ", I noticed " + genuineDetail + ". I also saw that " + observation + ", which is great to see.",
-      "When researching " + businessName + ", I noticed " + genuineDetail + ". I also noticed " + observation + ".",
-      "I spent some time looking at " + businessName + " and noticed " + genuineDetail + ". I also noticed " + observation + "."
-    ];
+      "When researching " + businessName + ", I noticed " + genuineDetail + ". I also noticed " + observation + "."
+    ]);
   } else {
-    observationTransitions = [
+    openingLine = getRandomItem([
       "While looking into " + businessName + ", I noticed " + genuineDetail + ". I also noticed " + observation + "—it may be a small thing, but it caught my attention.",
-      "When researching " + businessName + " online, I noticed " + genuineDetail + ". I also noticed " + observation + "—it might be minor, but it stood out.",
-      "I spent some time looking at " + businessName + " and noticed " + genuineDetail + ". I also noticed " + observation + "—a small detail, but it caught my eye."
-    ];
+      "When researching " + businessName + " online, I noticed " + genuineDetail + ". I also noticed " + observation + "—it might be minor, but it stood out."
+    ]);
   }
 
-  const curiosityTransitions = [
-    "Rather than assume what your main focus is, I was curious if there are day-to-day processes that feel more time-consuming than they should—whether that's " + frictionExamples + " or something unique to you.",
-    "Instead of guessing your current priorities, I wanted to ask if there are day-to-day operations slowing you down—things like " + frictionExamples + " or anything else unique to your business.",
-    "I didn't want to assume what your biggest priority is. I was wondering if any daily processes feel too manual—like " + frictionExamples + " or something similar."
-  ];
+  const curiosityLine = getRandomItem([
+    "I was curious whether your day-to-day scheduling and operations are still working smoothly as things have grown.",
+    "I was wondering if your customer follow-up process still feels manageable with your current volume.",
+    "I was just curious if your current operational processes are keeping up easily with your growth."
+  ]);
 
-  const solutionTransitions = [
-    "If that's the case, the right solution might be workflow automation, a CRM, an AI solution, a website update, or something else entirely. I'd rather understand the actual problem before suggesting anything.",
-    "Depending on the real bottleneck, the fix could be a custom internal tool, a booking platform, workflow automation, or a website improvement. I prefer to understand the problem before guessing the solution.",
-    "If any of that rings true, the best approach might be AI automation, custom business software, or a website upgrade. I'd rather learn what you actually need before making suggestions."
-  ];
-
-  const closings = [
-    "If this sounds relevant, I'd be happy to have a short, no-pressure conversation.",
-    "If any of this resonates with you, I'd love to have a brief, no-pressure chat about it.",
-    "If this is relevant to you, I'd be happy to jump on a quick, no-pressure call to learn more."
-  ];
-
-  const signOffs = [
-    "Thank you for your time, and I wish you continued success.",
-    "Thanks for your time, and wishing you all the best.",
-    "I appreciate your time. Wishing you continued success!"
-  ];
+  const ctaLine = getRandomItem([
+    "Even a quick 'not right now' or 'maybe, tell me more' would be genuinely helpful — no pressure either way.",
+    "If you have a quick second to reply with a 'not right now' or 'let's talk', I'd really appreciate it — no pressure.",
+    "A simple 'not right now' or 'tell me more' is completely fine — just wanted to reach out."
+  ]);
 
   const subject = 'A quick question about ' + businessName;
 
   const body = 
     'Hi ' + ownerLine + ',\n\n' +
-    getRandomItem(openings) + '\n\n' +
-    getRandomItem(introTransitions) + '\n\n' +
-    getRandomItem(observationTransitions) + '\n\n' +
-    getRandomItem(curiosityTransitions) + '\n\n' +
-    getRandomItem(solutionTransitions) + '\n\n' +
-    getRandomItem(closings) + '\n\n' +
-    getRandomItem(signOffs) + '\n\n' +
+    openingLine + '\n\n' +
+    curiosityLine + '\n\n' +
+    ctaLine + '\n\n' +
     'Best regards,\n\n' +
     senderName + '\n' +
-    'Business Development | AI Automation\n' +
     'harshikagahlot01@gmail.com';
 
   return { subject: subject, body: body };
@@ -311,7 +286,7 @@ function menuDraftOutreachEmails() {
 
     newDraftRows.push([
       lead.name, lead.industry, extractCityFromAddress(lead.address), lead.email,
-      lead.phone, lead.websiteStatus, email.subject, email.body, 'Draft', lead.placeId,
+      lead.phone, lead.websiteStatus, lead.recommendedChannel || '', email.subject, email.body, 'Draft', lead.placeId,
       ''  // Gmail Draft ID — empty until menuPushDraftsToGmail() fills it
     ]);
   });
@@ -365,6 +340,10 @@ function mapQualifiedRowToLead(row) {
     phone: row[idx('Phone')],
     website: row[idx('Website')],
     websiteStatus: row[idx('Website Status')],
+    emailType: row[idx('Email Type')],
+    recommendedChannel: row[idx('Recommended Channel')],
+    readinessScore: row[idx('Readiness Score')],
+    readinessNotes: row[idx('Readiness Notes')],
     rating: row[idx('Rating')],
     reviewCount: row[idx('Reviews')],
     address: row[idx('Address')],
@@ -470,10 +449,26 @@ function menuPushDraftsToGmail() {
     const recipientEmail = (row[emailCol - 1] || '').toString().trim();
     const subject        = (row[subjectCol - 1] || '').toString().trim();
     const body           = (row[bodyCol - 1] || '').toString().trim();
+    
+    // We get the recommended channel dynamically
+    const recommendedChannelCol = DRAFT_HEADERS.indexOf('Recommended Channel') + 1;
+    const recommendedChannel = (row[recommendedChannelCol - 1] || '').toString().trim();
 
     if (!recipientEmail) { skippedNoEmail++;   return; }
     if (!subject)        { skippedNoSubject++; return; }
     if (!body)           { skippedNoBody++;    return; }
+
+    if (recommendedChannel && recommendedChannel !== 'Email') {
+      statusValues[i] = ['Draft — recommended channel is not email'];
+      skippedAlready++;
+      return;
+    }
+
+    if (subject === 'Needs Review') {
+      statusValues[i] = ['Draft — Low Readiness Score'];
+      skippedAlready++;
+      return;
+    }
 
     // ── CREATE GMAIL DRAFT ──
     try {

@@ -151,7 +151,9 @@ function appendQualifiedRow(lead) {
   const sheet = SpreadsheetApp.getActive().getSheetByName(SHEET_QUALIFIED);
   sheet.appendRow([
     lead.name, lead.industry, lead.owner || '', lead.email, lead.phone,
-    lead.website || '', lead.websiteStatus, lead.score, lead.rating || '',
+    lead.website || '', lead.websiteStatus, lead.emailType || '',
+    lead.recommendedChannel || '', lead.readinessScore || '', lead.readinessNotes || '',
+    lead.score, lead.rating || '',
     lead.reviewCount || '', lead.address, lead.mapsUrl || '', lead.notes || '',
     lead.placeId
   ]);
