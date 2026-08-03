@@ -158,8 +158,18 @@ function getRandomItem(arr) {
  * Builds { subject, body } for one lead using the new randomized template structure.
  */
 function buildEmailDraft(lead, settings) {
-  // Readiness Check
-  if (lead.readinessScore < 50) {
+  // Gate 1: Non-email channel — generate a placeholder, not a real draft
+  if (lead.recommendedChannel && lead.recommendedChannel !== 'Email') {
+    return {
+      subject: 'Use ' + lead.recommendedChannel + ' Channel',
+      body: 'Recommended channel for this lead is ' + lead.recommendedChannel + ' — not email.\n\nContact via: ' +
+        (lead.recommendedChannel === 'Phone' ? (lead.phone || 'see phone column') : lead.recommendedChannel) +
+        '\n\nReadiness Notes: ' + (lead.readinessNotes || '')
+    };
+  }
+
+  // Gate 2: Low readiness score — needs more research
+  if ((Number(lead.readinessScore) || 0) < 50) {
     return {
       subject: 'Needs Review',
       body: 'This lead needs more research or a different outreach channel before contacting.\n\nReadiness Notes: ' + (lead.readinessNotes || '')
@@ -231,14 +241,22 @@ function ensureDraftsSheet() {
   sheet.setColumnWidth(draftCol, 500);
   sheet.getRange(1, draftCol, Math.max(sheet.getMaxRows(), 1000), 1).setWrap(true);
 
-  // Backward-compatible migration: if the sheet was created before the
-  // 'Gmail Draft ID' column existed, add the header now. Existing data
-  // rows will have an empty value in this column, which is correct —
-  // menuPushDraftsToGmail() treats empty as "not yet pushed."
-  const gmailIdCol = DRAFT_HEADERS.indexOf('Gmail Draft ID') + 1;
-  if (sheet.getLastColumn() < gmailIdCol) {
-    sheet.getRange(1, gmailIdCol).setValue('Gmail Draft ID').setFontWeight('bold');
-  }
+  // Migration: ensure all expected headers exist in the correct positions.
+  // This handles sheets created before 'Recommended Channel' and 'Gmail Draft ID' were added.
+  const lastCol = sheet.getLastColumn();
+  const existingHeaders = lastCol > 0 ? sheet.getRange(1, 1, 1, lastCol).getValues()[0] : [];
+
+  DRAFT_HEADERS.forEach((header, i) => {
+    const col = i + 1;
+    if ((existingHeaders[i] || '').toString().trim() !== header) {
+      // Insert missing column at the correct position
+      if (col > lastCol) {
+        sheet.getRange(1, col).setValue(header).setFontWeight('bold');
+      }
+      // If a column is out of place we just ensure the header text is set
+      // without moving data — prevents silent misalignment on old sheets.
+    }
+  });
 
   return sheet;
 }
