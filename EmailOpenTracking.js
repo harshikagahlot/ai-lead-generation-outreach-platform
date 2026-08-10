@@ -22,19 +22,34 @@ const EMAIL_OPEN_SPREADSHEET_ID_PROPERTY = 'EMAIL_OPEN_TRACKING_SPREADSHEET_ID';
  */
 function initializeEmailOpenTracking() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  if (!ss) throw new Error('No active spreadsheet found. Open the lead-generation spreadsheet and run this function again.');
+
+  if (!ss) {
+    throw new Error(
+      'No active spreadsheet found. Open the lead-generation spreadsheet and run this function again.'
+    );
+  }
 
   PropertiesService.getScriptProperties().setProperty(
     EMAIL_OPEN_SPREADSHEET_ID_PROPERTY,
     ss.getId()
   );
 
-  ensureSheetWithHeaders(ss, SHEET_OPENS, OPENS_HEADERS);
+  let sheet = ss.getSheetByName(SHEET_OPENS);
 
-  SpreadsheetApp.getUi().alert(
-    'Email open tracking initialized.\n\n' +
-    'Spreadsheet ID stored and Email_Opens sheet is ready.'
-  );
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_OPENS);
+  }
+
+  if (sheet.getLastRow() === 0) {
+    sheet.getRange(1, 1, 1, OPENS_HEADERS.length)
+      .setValues([OPENS_HEADERS]);
+  }
+
+  SpreadsheetApp.flush();
+
+  Logger.log('Email open tracking initialized successfully.');
+  Logger.log('Spreadsheet ID: ' + ss.getId());
+  Logger.log('Sheet: ' + SHEET_OPENS);
 }
 
 /**
