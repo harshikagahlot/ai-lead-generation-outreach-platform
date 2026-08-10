@@ -35,6 +35,21 @@ function classifyEmail(email) {
 }
 
 /**
+ * Checks if an email is valid for outreach (non-empty, syntactically valid, not a placeholder).
+ * Note: Email classification (Named vs Generic Inbox) is kept separate from syntax/placeholder validity.
+ * @param {string} email
+ * @returns {boolean}
+ */
+function isValidOutreachEmail(email) {
+  if (!email || typeof email !== 'string') return false;
+  const trimmed = email.trim();
+  if (!trimmed) return false;
+  if (!EMAIL_REGEX.test(trimmed)) return false;
+  if (isPlaceholderEmail(trimmed)) return false;
+  return true;
+}
+
+/**
  * Known placeholder/template emails left behind by website builders when a
  * business never replaces the demo contact info. Matching any of these
  * patterns means "not a real contact" — never accept them as a lead's email,

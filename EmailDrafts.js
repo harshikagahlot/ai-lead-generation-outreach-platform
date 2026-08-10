@@ -159,20 +159,33 @@ function getRandomItem(arr) {
  */
 function buildEmailDraft(lead, settings) {
   // Gate 1: Non-email channel — generate a placeholder, not a real draft
-  if (lead.recommendedChannel && lead.recommendedChannel !== 'Email') {
+  if (!lead.recommendedChannel || lead.recommendedChannel.trim().toUpperCase() !== 'EMAIL') {
     return {
-      subject: 'Use ' + lead.recommendedChannel + ' Channel',
-      body: 'Recommended channel for this lead is ' + lead.recommendedChannel + ' — not email.\n\nContact via: ' +
-        (lead.recommendedChannel === 'Phone' ? (lead.phone || 'see phone column') : lead.recommendedChannel) +
+      subject: 'Use ' + (lead.recommendedChannel || 'Other') + ' Channel',
+      body: 'Recommended channel for this lead is ' + (lead.recommendedChannel || 'non-email') + ' — not email.\n\nContact via: ' +
+        (lead.recommendedChannel === 'Phone' ? (lead.phone || 'see phone column') : (lead.recommendedChannel || 'non-email channel')) +
         '\n\nReadiness Notes: ' + (lead.readinessNotes || '')
     };
   }
 
-  // Gate 2: Low readiness score — needs more research
-  if ((Number(lead.readinessScore) || 0) < 50) {
+  // Gate 2: Email Validity Check (non-empty, syntactically valid, not placeholder)
+  if (!isValidOutreachEmail(lead.email)) {
+    return {
+      subject: 'Needs Review - Invalid Email',
+      body: 'Email address (' + (lead.email || 'none') + ') is invalid, missing, or a placeholder.\n\nReadiness Notes: ' + (lead.readinessNotes || '')
+    };
+  }
+
+  // Gate 3: Must satisfy BOTH readiness score >= 50 AND at least ONE concrete observation
+  const readinessScore = Number(lead.readinessScore) || 0;
+  const concreteObs = hasConcreteObservation(lead);
+  if (readinessScore < 50 || !concreteObs) {
     return {
       subject: 'Needs Review',
-      body: 'This lead needs more research or a different outreach channel before contacting.\n\nReadiness Notes: ' + (lead.readinessNotes || '')
+      body: 'This lead needs more research or a different outreach channel before contacting.\n\nReason: ' +
+        (!concreteObs ? 'Lacks concrete specific observation for personalization. ' : '') +
+        (readinessScore < 50 ? 'Low readiness score (' + readinessScore + '). ' : '') +
+        '\n\nReadiness Notes: ' + (lead.readinessNotes || '')
     };
   }
 
@@ -476,15 +489,33 @@ function menuPushDraftsToGmail() {
     if (!subject)        { skippedNoSubject++; return; }
     if (!body)           { skippedNoBody++;    return; }
 
-    if (recommendedChannel && recommendedChannel !== 'Email') {
-      statusValues[i] = ['Draft — recommended channel is not email'];
+    // ── DEFENSIVE FINAL SAFETY CHECKS BEFORE CREATING GMAIL DRAFT ──
+
+    // Defensive Check 1: Recommended Channel MUST BE EXACTLY 'Email'
+    if (recommendedChannel.toUpperCase() !== 'EMAIL') {
+      statusValues[i] = ['Skipped: Channel is ' + (recommendedChannel || 'non-email')];
       skippedAlready++;
       return;
     }
 
-    if (subject === 'Needs Review') {
-      statusValues[i] = ['Draft — Low Readiness Score'];
-      skippedAlready++;
+    // Defensive Check 2: Email address MUST be valid & non-placeholder
+    if (!isValidOutreachEmail(recipientEmail)) {
+      statusValues[i] = ['Skipped: Invalid or Placeholder Email'];
+      skippedNoEmail++;
+      return;
+    }
+
+    // Defensive Check 3: Subject & Body MUST NOT be placeholders
+    const lowerSubj = subject.toLowerCase();
+    if (lowerSubj === 'needs review' || lowerSubj.startsWith('needs review') || lowerSubj.startsWith('use ') || lowerSubj.startsWith('draft')) {
+      statusValues[i] = ['Skipped: Placeholder Subject'];
+      skippedNoSubject++;
+      return;
+    }
+
+    if (body.startsWith('This lead needs more research') || body.startsWith('Recommended channel for this lead') || body.startsWith('Email address')) {
+      statusValues[i] = ['Skipped: Placeholder Body'];
+      skippedNoBody++;
       return;
     }
 

@@ -56,11 +56,44 @@ function evaluateQualification(hasEmail, websiteStatus) {
 }
 
 /**
+ * Evaluates whether a lead contains at least ONE genuinely concrete and specific observation.
+ * Qualifying observations:
+ * 1. A real website technical flag (HTTP error, broken link, missing SSL, mobile viewport, flash, obsolete HTML, small page depth, older copyright year).
+ * 2. OR a genuinely notable business/reputation signal with meaningful review volume (rating >= 4.5 & reviews >= 50, OR rating >= 4.0 & reviews >= 15).
+ * Weak/generic signals (generic praise, rating alone without review volume, missing observations) do NOT qualify.
+ * @param {object} lead
+ * @returns {boolean}
+ */
+function hasConcreteObservation(lead) {
+  if (!lead) return false;
+  
+  // 1. Specific website technical flags
+  if (lead.notes && typeof lead.notes === 'string' && lead.notes.trim().length > 0) {
+    const flags = lead.notes.split(';').map(s => s.trim().toLowerCase()).filter(Boolean);
+    const specificTechnicalRegex = /http \d|did not respond|placeholder|href="#"|no https|viewport|flash|obsolete html|table-based|very small page|copyright year/;
+    for (const flag of flags) {
+      if (specificTechnicalRegex.test(flag)) {
+        return true;
+      }
+    }
+  }
+
+  // 2. Notable reputation signal (high rating WITH meaningful review volume)
+  const rating = Number(lead.rating) || 0;
+  const reviews = Number(lead.reviewCount) || 0;
+  if ((rating >= 4.5 && reviews >= 50) || (rating >= 4.0 && reviews >= 15)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Computes the Outreach Readiness Score.
  * @param {object} lead 
  * @param {string} emailType 
  * @param {string} recommendedChannel 
- * @returns {{score: number, notes: string}}
+ * @returns {{score: number, hasConcreteObservation: boolean, notes: string}}
  */
 function computeOutreachReadiness(lead, emailType, recommendedChannel) {
   let score = 0;
@@ -93,28 +126,20 @@ function computeOutreachReadiness(lead, emailType, recommendedChannel) {
     notes.push('Website is active');
   }
 
-  // Observations (Proxy for personalization potential)
-  const rating = Number(lead.rating) || 0;
-  const reviews = Number(lead.reviewCount) || 0;
-  let hasGenuineDetail = false;
-  if (rating >= 4.0 && reviews >= 15) {
-    hasGenuineDetail = true;
-    score += 25;
-    notes.push('Strong rating/reviews for personalization');
-  } else if (lead.notes && lead.notes.length > 5) {
-    hasGenuineDetail = true;
-    score += 15;
-    notes.push('Specific website observations available');
-  }
-
-  if (!hasGenuineDetail) {
-    notes.push('Lacks specific personalization details');
+  // Check for concrete observation
+  const concreteObs = hasConcreteObservation(lead);
+  if (concreteObs) {
+    score += 20;
+    notes.push('Concrete observation available for personalization');
+  } else {
+    notes.push('Lacks concrete observation for personalization');
   }
 
   score = Math.max(0, Math.min(100, score));
 
   return {
     score: score,
+    hasConcreteObservation: concreteObs,
     notes: notes.join(' | ')
   };
 }
