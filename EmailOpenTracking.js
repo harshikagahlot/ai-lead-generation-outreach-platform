@@ -53,6 +53,44 @@ function initializeEmailOpenTracking() {
 }
 
 /**
+ * Diagnostic setup check.
+ *
+ * This deliberately performs READ-ONLY checks only. It is used to identify
+ * which spreadsheet operation is hanging before initializeEmailOpenTracking
+ * is attempted again. It does NOT create sheets, write data, or modify
+ * Script Properties.
+ */
+function diagnoseEmailOpenTrackingSetup() {
+  Logger.log('DIAGNOSTIC STEP 1: function entered');
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  Logger.log('DIAGNOSTIC STEP 2: getActiveSpreadsheet completed');
+
+  if (!ss) {
+    throw new Error('DIAGNOSTIC FAILED: No active spreadsheet is available.');
+  }
+
+  const spreadsheetId = ss.getId();
+  Logger.log('DIAGNOSTIC STEP 3: spreadsheet ID read: ' + spreadsheetId);
+
+  const spreadsheetName = ss.getName();
+  Logger.log('DIAGNOSTIC STEP 4: spreadsheet name read: ' + spreadsheetName);
+
+  const opensSheet = ss.getSheetByName(SHEET_OPENS);
+  Logger.log(
+    'DIAGNOSTIC STEP 5: Email_Opens lookup completed. Exists=' + Boolean(opensSheet)
+  );
+
+  if (opensSheet) {
+    const lastRow = opensSheet.getLastRow();
+    Logger.log('DIAGNOSTIC STEP 6: Email_Opens lastRow=' + lastRow);
+  }
+
+  Logger.log('DIAGNOSTIC COMPLETE: all read-only spreadsheet checks passed.');
+  return 'DIAGNOSTIC COMPLETE';
+}
+
+/**
  * Returns the spreadsheet used by the tracking endpoint.
  * For normal spreadsheet/menu execution, the active spreadsheet is used.
  * For web-app execution, the stored spreadsheet ID is used because there
