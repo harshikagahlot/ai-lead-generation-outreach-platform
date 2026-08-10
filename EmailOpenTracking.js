@@ -12,6 +12,51 @@
  * Do not treat open tracking as authoritative engagement data.
  */
 
+const EMAIL_OPEN_SPREADSHEET_ID_PROPERTY = 'EMAIL_OPEN_TRACKING_SPREADSHEET_ID';
+
+/**
+ * One-time setup for the web-app endpoint.
+ * Run this from the bound spreadsheet project while the target spreadsheet
+ * is open. It stores the parent spreadsheet ID in Script Properties so the
+ * web-app request does not depend on an "active" spreadsheet context.
+ */
+function initializeEmailOpenTracking() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) throw new Error('No active spreadsheet found. Open the lead-generation spreadsheet and run this function again.');
+
+  PropertiesService.getScriptProperties().setProperty(
+    EMAIL_OPEN_SPREADSHEET_ID_PROPERTY,
+    ss.getId()
+  );
+
+  ensureSheetWithHeaders(ss, SHEET_OPENS, OPENS_HEADERS);
+
+  SpreadsheetApp.getUi().alert(
+    'Email open tracking initialized.\n\n' +
+    'Spreadsheet ID stored and Email_Opens sheet is ready.'
+  );
+}
+
+/**
+ * Returns the spreadsheet used by the tracking endpoint.
+ * For normal spreadsheet/menu execution, the active spreadsheet is used.
+ * For web-app execution, the stored spreadsheet ID is used because there
+ * may be no active spreadsheet UI context.
+ */
+function getEmailOpenTrackingSpreadsheet() {
+  const active = SpreadsheetApp.getActiveSpreadsheet();
+  if (active) return active;
+
+  const id = PropertiesService.getScriptProperties().getProperty(
+    EMAIL_OPEN_SPREADSHEET_ID_PROPERTY
+  );
+  if (!id) {
+    throw new Error('Email open tracking is not initialized. Run initializeEmailOpenTracking() once from the bound spreadsheet.');
+  }
+
+  return SpreadsheetApp.openById(id);
+}
+
 /**
  * Web-app GET endpoint for an email-open event.
  *
@@ -28,9 +73,7 @@ function doGet(e) {
 
   if (leadId) {
     try {
-      // Apps Script does not expose the HTTP User-Agent through the doGet
-      // event object, so leave that field blank rather than inventing it.
-      logEmailOpen(leadId, '');
+      logEmailOpenFromWebApp(leadId);
     } catch (err) {
       // Do not expose spreadsheet/database errors to the requester.
       console.error('Email open logging failed: ' + err.message);
@@ -46,13 +89,47 @@ function doGet(e) {
 }
 
 /**
+ * Web-app-safe logger. It does not rely on SpreadsheetApp.getActive(),
+ * because a web-app request has no spreadsheet UI context.
+ */
+function logEmailOpenFromWebApp(leadId) {
+  if (!leadId) return;
+
+  const ss = getEmailOpenTrackingSpreadsheet();
+  const opensSheet = ensureSheetWithHeaders(ss, SHEET_OPENS, OPENS_HEADERS);
+  let businessName = '';
+
+  try {
+    const draftsSheet = ss.getSheetByName(SHEET_DRAFTS);
+    if (draftsSheet && draftsSheet.getLastRow() > 1) {
+      const pCol = DRAFT_HEADERS.indexOf('Place ID') + 1;
+      const nCol = DRAFT_HEADERS.indexOf('Business Name') + 1;
+      const data = draftsSheet
+        .getRange(2, 1, draftsSheet.getLastRow() - 1, draftsSheet.getLastColumn())
+        .getValues();
+
+      for (let i = 0; i < data.length; i++) {
+        if (String(data[i][pCol - 1] || '').trim() === leadId) {
+          businessName = data[i][nCol - 1] || '';
+          break;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Could not resolve business name for open event: ' + err.message);
+  }
+
+  opensSheet.appendRow([now(), leadId, businessName, 'Opened', '']);
+}
+
+/**
  * Builds a per-lead summary of recorded open events and matches them to
  * Outreach_Drafts using Place ID.
  *
  * @returns {Object[]} summary rows.
  */
 function getOpenTrackingSummary() {
-  const ss = SpreadsheetApp.getActive();
+  const ss = getEmailOpenTrackingSpreadsheet();
   const draftsSheet = ss.getSheetByName(SHEET_DRAFTS);
   const opensSheet = ss.getSheetByName(SHEET_OPENS);
 
@@ -72,22 +149,20 @@ function getOpenTrackingSummary() {
 
     opensRows.forEach(row => {
       const leadId = String(row[leadCol] || '').trim();
-      if (!leadId) return;
-
-      if (!eventsByLead[leadId]) {
-        eventsByLead[leadId] = {
-          firstOpened: row[tsCol] || '',
-          lastOpened: row[tsCol] || '',
-          totalOpens: 0
-        };
-      }
-
-      if (String(row[eventCol] || '').trim() !== 'Opened') return;
+      if (!leadId || String(row[eventCol] || '').trim() !== 'Opened') return;
 
       const timestamp = row[tsCol] || '';
+      if (!eventsByLead[leadId]) {
+        eventsByLead[leadId] = {
+          firstOpened: timestamp,
+          lastOpened: timestamp,
+          totalOpens: 1
+        };
+        return;
+      }
+
       const item = eventsByLead[leadId];
       item.totalOpens++;
-
       if (!item.firstOpened || (timestamp && timestamp < item.firstOpened)) item.firstOpened = timestamp;
       if (!item.lastOpened || (timestamp && timestamp > item.lastOpened)) item.lastOpened = timestamp;
     });
@@ -150,6 +225,30 @@ function menuViewEmailOpens() {
     '\n\nNOTE: Opens are directional only. Gmail/email clients may block, cache, proxy, or prefetch images, so an event does not prove a person actually read the email.';
 
   ui.alert('Email Opens', message, ui.ButtonSet.OK);
+}
+
+/**
+ * Lightweight Apps Script-side verification helper.
+ * It exercises doGet() with a synthetic lead ID and verifies that the
+ * endpoint returns XML text. It also confirms the logging path can write
+ * to Email_Opens. Run only after initializeEmailOpenTracking().
+ */
+function testEmailOpenTracking() {
+  const testLeadId = 'TEST_OPEN_TRACKING_' + new Date().getTime();
+  const before = getEmailOpenTrackingSpreadsheet().getSheetByName(SHEET_OPENS).getLastRow();
+  const response = doGet({ parameter: { leadId: testLeadId } });
+  const after = getEmailOpenTrackingSpreadsheet().getSheetByName(SHEET_OPENS).getLastRow();
+
+  if (after !== before + 1) {
+    throw new Error('FAIL: doGet() did not append exactly one Email_Opens row.');
+  }
+
+  if (response.getMimeType() !== ContentService.MimeType.XML) {
+    throw new Error('FAIL: tracking endpoint did not return XML MIME type.');
+  }
+
+  Logger.log('PASS: doGet() logged one event and returned XML.');
+  return 'PASS';
 }
 
 /** Formats a timestamp for the spreadsheet UI without assuming a timezone. */
