@@ -21,6 +21,7 @@ function initializeWorkbook() {
   ensureSheetWithHeaders(ss, SHEET_REJECTED, REJECTED_HEADERS);
   ensureSheetWithHeaders(ss, SHEET_LOGS, LOG_HEADERS);
   ensureSheetWithHeaders(ss, SHEET_DRAFTS, DRAFT_HEADERS);
+  ensureSheetWithHeaders(ss, SHEET_OPENS, OPENS_HEADERS);
 
   // Settings sheet is special: key/value pairs, seeded with defaults.
   let settingsSheet = ss.getSheetByName(SHEET_SETTINGS);
@@ -200,4 +201,35 @@ function exportQualifiedLeadsToCsv() {
   const fileName = 'Qualified_Leads_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm') + '.csv';
   const file = DriveApp.createFile(fileName, csv, MimeType.CSV);
   return file;
+}
+
+/**
+ * Logs an email open event into the Email_Opens sheet.
+ * @param {string} leadId - Place ID or unique Lead ID
+ * @param {string} userAgent - User agent string from HTTP request if available
+ */
+function logEmailOpen(leadId, userAgent) {
+  if (!leadId) return;
+  const ss = SpreadsheetApp.getActive();
+  const opensSheet = ensureSheetWithHeaders(ss, SHEET_OPENS, OPENS_HEADERS);
+  
+  let businessName = '';
+  try {
+    const draftsSheet = ss.getSheetByName(SHEET_DRAFTS);
+    if (draftsSheet && draftsSheet.getLastRow() > 1) {
+      const pCol = DRAFT_HEADERS.indexOf('Place ID') + 1;
+      const nCol = DRAFT_HEADERS.indexOf('Business Name') + 1;
+      const data = draftsSheet.getRange(2, 1, draftsSheet.getLastRow() - 1, draftsSheet.getLastColumn()).getValues();
+      for (let i = 0; i < data.length; i++) {
+        if (data[i][pCol - 1] === leadId) {
+          businessName = data[i][nCol - 1] || '';
+          break;
+        }
+      }
+    }
+  } catch (e) {
+    Logger.log('Could not resolve business name for open event: ' + e.message);
+  }
+
+  opensSheet.appendRow([now(), leadId, businessName, 'Opened', userAgent || '']);
 }

@@ -557,3 +557,80 @@ function menuPushDraftsToGmail() {
 
   SpreadsheetApp.getUi().alert(lines.join('\n'));
 }
+
+/**
+ * Menu action: Summarizes recorded Email_Opens against Outreach_Drafts.
+ * Displays: Lead Name, Opened (Yes/No), First Opened, Last Opened, Total Opens.
+ */
+function menuViewEmailOpens() {
+  const ss = SpreadsheetApp.getActive();
+  const opensSheet = ss.getSheetByName(SHEET_OPENS);
+  const ui = SpreadsheetApp.getUi();
+
+  if (!opensSheet || opensSheet.getLastRow() < 2) {
+    ui.alert('No email open events recorded yet in "Email_Opens".');
+    return;
+  }
+
+  const opensData = opensSheet.getRange(2, 1, opensSheet.getLastRow() - 1, OPENS_HEADERS.length).getValues();
+
+  const opensMap = {};
+  opensData.forEach(row => {
+    const timestamp = row[0];
+    const leadId = (row[1] || '').toString().trim();
+    const bizName = (row[2] || '').toString().trim();
+
+    if (!leadId) return;
+
+    if (!opensMap[leadId]) {
+      opensMap[leadId] = {
+        name: bizName || leadId,
+        count: 0,
+        firstOpened: timestamp,
+        lastOpened: timestamp
+      };
+    }
+
+    opensMap[leadId].count++;
+    opensMap[leadId].lastOpened = timestamp;
+    if (bizName && (!opensMap[leadId].name || opensMap[leadId].name === leadId)) {
+      opensMap[leadId].name = bizName;
+    }
+  });
+
+  const leadIds = Object.keys(opensMap);
+  if (!leadIds.length) {
+    ui.alert('No valid lead opens recorded.');
+    return;
+  }
+
+  let message = '📊 EMAIL OPENS SUMMARY (' + leadIds.length + ' leads recorded)\n\n';
+  leadIds.slice(0, 15).forEach((id, idx) => {
+    const item = opensMap[id];
+    const firstStr = item.firstOpened ? Utilities.formatDate(new Date(item.firstOpened), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm') : 'N/A';
+    const lastStr = item.lastOpened ? Utilities.formatDate(new Date(item.lastOpened), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm') : 'N/A';
+    message += (idx + 1) + '. ' + item.name + '\n' +
+               '   Opened: Yes (' + item.count + ' time' + (item.count > 1 ? 's' : '') + ')\n' +
+               '   First: ' + firstStr + ' | Last: ' + lastStr + '\n\n';
+  });
+
+  if (leadIds.length > 15) {
+    message += '... and ' + (leadIds.length - 15) + ' more. Check the Email_Opens tab for full history.';
+  }
+
+  ui.alert(message);
+}
+
+/**
+ * Returns HTML string for tracking pixel if Web App URL is configured.
+ * @param {string} leadId
+ * @param {object} settings
+ * @returns {string} HTML img tag or empty string
+ */
+function getTrackingPixelHtml(leadId, settings) {
+  if (!leadId) return '';
+  const webAppUrl = (settings && settings['Web App URL']) ? settings['Web App URL'].toString().trim() : '';
+  if (!webAppUrl) return '';
+
+  return '<img src="' + webAppUrl + '?leadId=' + encodeURIComponent(leadId) + '" width="1" height="1" style="display:none !important;" alt="" />';
+}

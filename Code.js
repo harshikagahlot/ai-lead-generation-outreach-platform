@@ -43,6 +43,8 @@ function onOpen() {
     .addItem('7. Draft Outreach Emails (new leads only)', 'menuDraftOutreachEmails')
     .addItem('8. Re-draft ALL Outreach Emails (fresh, overwrites)', 'menuRedraftAllOutreachEmails')
     .addItem('9. Push Drafts to Gmail (creates Gmail drafts only — never sends)', 'menuPushDraftsToGmail')
+    .addSeparator()
+    .addItem('10. View Email Opens Summary', 'menuViewEmailOpens')
     .addToUi();
 }
 
@@ -431,4 +433,25 @@ function mapRawRowToLead(row) {
 function menuExportCsv() {
   const file = exportQualifiedLeadsToCsv();
   SpreadsheetApp.getUi().alert('Exported to Google Drive: ' + file.getName() + '\n\n' + file.getUrl());
+}
+
+/**
+ * Web App HTTP GET endpoint for tracking email opens via tracking pixel.
+ * Usage: GET https://script.google.com/macros/s/[DEPLOYMENT_ID]/exec?leadId=PLACE_ID
+ */
+function doGet(e) {
+  try {
+    const leadId = (e && e.parameter && e.parameter.leadId) ? e.parameter.leadId.trim() : '';
+    const userAgent = (e && e.parameter && e.parameter.userAgent) || '';
+    
+    if (leadId) {
+      logEmailOpen(leadId, userAgent);
+    }
+  } catch (err) {
+    Logger.log('doGet open tracking error: ' + err.message);
+  }
+  
+  // Return 1x1 SVG response compatible with ContentService
+  const transparentSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>';
+  return ContentService.createTextOutput(transparentSvg).setMimeType(ContentService.Mime.XML);
 }

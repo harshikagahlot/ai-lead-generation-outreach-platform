@@ -25,6 +25,7 @@ const SHEET_REJECTED = 'Rejected_Leads';
 const SHEET_LOGS = 'Logs';
 const SHEET_SETTINGS = 'Settings';
 const SHEET_DRAFTS = 'Outreach_Drafts';
+const SHEET_OPENS = 'Email_Opens';
 
 // ---- Settings-sheet key names (used by EmailDrafts.js) ----
 const YOUR_NAME_SETTING = 'Your Name';
@@ -55,6 +56,10 @@ const LOG_HEADERS = [
 const DRAFT_HEADERS = [
   'Business Name', 'Industry', 'City', 'Email', 'Phone', 'Website Status',
   'Recommended Channel', 'Subject', 'Email Draft', 'Status', 'Place ID', 'Gmail Draft ID'
+];
+
+const OPENS_HEADERS = [
+  'Timestamp', 'Lead ID', 'Business Name', 'Event', 'User Agent'
 ];
 
 // ---- Website classification thresholds (outdated-flag counts) ----
@@ -101,7 +106,8 @@ const DEFAULT_SETTINGS = {
   'Your Name': '',
   'Your Company / Service': '',
   'Batch Size (leads per execution)': 15,
-  'Max Seconds Per Batch': 280
+  'Max Seconds Per Batch': 280,
+  'Web App URL': ''
 };
 
 /**
