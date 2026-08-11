@@ -1,44 +1,26 @@
 /**
  * BatchProcessor.gs
  * -----------------------------------------------------------------------
- * Makes lead generation RESUMABLE across multiple short executions instead
- * of one long one, which is what was hitting Apps Script's execution time
- * limit. The workflow now looks like:
+ * Resumable lead generation worker.
  *
- *   1. startNewLeadJob() runs the Places search ONCE, saves the full list
- *      of Place IDs + a "next index" pointer to PropertiesService, then
- *      processes one batch immediately.
- *   2. processBatch() processes leads starting at the saved pointer, for
- *      up to (Batch Size) leads OR (Max Seconds Per Batch) — whichever
- *      comes first — saving progress after EVERY single lead so a crash
- *      or forced stop never loses more than the current lead.
- *   3. If leads remain, a one-time trigger is scheduled to call
- *      processBatch() again automatically in ~1 minute. If everything is
- *      done, the job is marked complete and a summary is shown/logged.
+ * Important design change:
+ * - Google Places Text Search is now fetched ONE PAGE at a time.
+ * - The page token is saved in PropertiesService.
+ * - Lead processing is also saved after every lead.
+ * - A time-driven trigger continues the job automatically.
  *
- * This means a 200-business search that used to time out now runs as many
- * short, safe batches, continuing on its own until finished.
- *
- * Functions called from other files:
- *   - searchPlacesText()       → Code.js
- *   - getPlaceDetails()        → Code.js
- *   - buildLeadFromPlace()     → Code.js
- *   - getExistingPlaceIds()    → Sheets.js
- *   - getExistingFingerprints() → Sheets.js
- *   - appendRawRow() etc.      → Sheets.js
- *   - evaluateQualification()  → LeadScoring.js
- *
- * Menu actions defined here:
- *   - menuContinueLeadJob() — manually trigger the next batch
- *   - menuJobStatus() — show progress alert
- *   - menuCancelLeadJob() — cancel and clean up
+ * This prevents a large Places search from timing out BEFORE the resumable
+ * worker starts. Google Places Text Search (New) currently allows up to 20
+ * results per page and up to 60 results across pages for one text query.
  */
 
 const JOB_PROPERTY_KEY = 'LEAD_GEN_JOB_STATE';
 const TRIGGER_PROPERTY_KEY = 'LEAD_GEN_CONTINUATION_TRIGGER_ID';
+const PLACES_PAGE_SIZE = 20;
+const PLACES_MAX_RESULTS_PER_QUERY = 60;
 
 // =========================================================================
-// JOB STATE (persisted in PropertiesService so it survives between executions)
+// JOB STATE
 // =========================================================================
 
 function getJobState() {
@@ -55,37 +37,86 @@ function clearJobState() {
 }
 
 // =========================================================================
-// STARTING A NEW JOB
+// PLACES SEARCH — ONE PAGE AT A TIME
 // =========================================================================
 
 /**
- * Runs the Places search ONCE (this is the only part that still happens in
- * a single shot — it's fast and cheap compared to per-lead processing),
- * saves the resulting Place ID list as a new job, then immediately runs
- * the first batch so the person sees progress right away.
+ * Fetches exactly one Places Text Search page.
+ * The nextPageToken is persisted by the job so another execution can fetch
+ * the next page later instead of collecting the whole search up front.
  */
+function fetchPlacesSearchPage(industry, location, pageToken, pageSize) {
+  const apiKey = getPlacesApiKey();
+  const url = 'https://places.googleapis.com/v1/places:searchText';
+  const size = Math.min(PLACES_PAGE_SIZE, Math.max(1, Number(pageSize) || PLACES_PAGE_SIZE));
+
+  const body = {
+    textQuery: industry + ' in ' + location,
+    pageSize: size
+  };
+
+  if (pageToken) body.pageToken = pageToken;
+
+  const response = fetchWithRetry(url, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      'X-Goog-Api-Key': apiKey,
+      'X-Goog-FieldMask': 'places.id,places.displayName,nextPageToken'
+    },
+    payload: JSON.stringify(body)
+  });
+
+  if (!response) throw new Error('Places API returned no response.');
+
+  const json = JSON.parse(response.getContentText());
+  if (json.error) {
+    throw new Error('Places API error: ' + json.error.message);
+  }
+
+  return {
+    places: json.places || [],
+    nextPageToken: json.nextPageToken || null
+  };
+}
+
+// =========================================================================
+// STARTING A NEW JOB
+// =========================================================================
+
 function startNewLeadJob(industry, city, state, maxBusinesses) {
   const ui = SpreadsheetApp.getUi();
   const existing = getJobState();
+
   if (existing && existing.status === 'running') {
     ui.alert(
       'A lead generation job is already in progress: "' + existing.industry + '" in ' +
-      existing.city + ', ' + existing.state + ' (' + existing.nextIndex + '/' + existing.placeIds.length + ' processed).\n\n' +
+      existing.city + ', ' + existing.state + '.\n\n' +
+      'Progress: ' + existing.nextIndex + ' / ' + existing.placeIds.length +
+      ' currently discovered.\n\n' +
       'Use "Continue Lead Generation Job" to keep going, or "Cancel Current Job" first if you want to start something new.'
     );
     return;
   }
 
   const location = city + ', ' + state;
-  let places;
+  const requested = parseInt(maxBusinesses, 10) || 20;
+  const targetMax = Math.min(Math.max(requested, 1), PLACES_MAX_RESULTS_PER_QUERY);
+
+  let firstPage;
   try {
-    places = searchPlacesText(industry, location, maxBusinesses);
+    firstPage = fetchPlacesSearchPage(
+      industry,
+      location,
+      null,
+      Math.min(PLACES_PAGE_SIZE, targetMax)
+    );
   } catch (e) {
     ui.alert('Places search failed: ' + e.message);
     return;
   }
 
-  if (!places.length) {
+  if (!firstPage.places.length) {
     ui.alert('No results found for "' + industry + '" in "' + location + '".');
     return;
   }
@@ -94,34 +125,42 @@ function startNewLeadJob(industry, city, state, maxBusinesses) {
     industry: industry,
     city: city,
     state: state,
-    placeIds: places.map(p => p.id),
+    location: location,
+    targetMaxBusinesses: targetMax,
+    requestedMaxBusinesses: requested,
+    placeIds: firstPage.places.map(p => p.id).filter(Boolean),
     nextIndex: 0,
+    nextPageToken: firstPage.nextPageToken,
+    pagesFetched: 1,
     stats: { checked: 0, qualified: 0, rejected: 0, errors: 0 },
     status: 'running',
-    startedAt: new Date().toISOString()
+    startedAt: new Date().toISOString(),
+    lastPageFetchedAt: new Date().getTime()
   };
+
   saveJobState(job);
 
-  ui.alert(
-    'Found ' + job.placeIds.length + ' businesses for "' + industry + '" in ' + location + '.\n\n' +
-    'Processing in small batches to avoid timeouts — running the first batch now. ' +
-    'If more remain after this, it will continue automatically in the background (about once a minute) ' +
-    'until done. You can also click "Continue Lead Generation Job" any time to speed it along manually.'
-  );
+  let message =
+    'Found the first ' + job.placeIds.length + ' businesses for "' + industry + '" in ' + location + '.\n\n' +
+    'Lead processing is now resumable. More Places pages will be fetched only when needed, so the initial search cannot consume the whole execution time.';
 
+  if (requested > PLACES_MAX_RESULTS_PER_QUERY) {
+    message +=
+      '\n\nGoogle Places Text Search currently returns at most 60 results across pages for one text query. ' +
+      'This job is therefore capped at 60 for this query. For more than 60, we will need additional search queries/locations rather than pretending one query can return 200.';
+  }
+
+  message +=
+    '\n\nThe first processing batch will start now. Remaining work will continue automatically about once a minute.';
+
+  ui.alert(message);
   processBatch();
 }
 
 // =========================================================================
-// PROCESSING ONE BATCH (the resumable worker — this is what a trigger calls)
+// PROCESSING ONE RESUMABLE BATCH
 // =========================================================================
 
-/**
- * Processes leads starting from the job's saved pointer, stopping at
- * whichever limit is hit first: batch size (count) or max seconds
- * (wall-clock time budget). Saves progress after EVERY lead, so partial
- * progress is never lost even if this execution is killed mid-batch.
- */
 function processBatch() {
   const startTime = new Date().getTime();
   const settings = getSettings();
@@ -134,8 +173,6 @@ function processBatch() {
     return;
   }
 
-  // Read both dedup structures from Raw_Data in a single sheet read
-  // instead of two separate reads (getExistingPlaceIds + getExistingFingerprints).
   const dedupData = getExistingDedupData();
   const existingIds = dedupData.placeIds;
   const existingFingerprints = dedupData.fingerprints;
@@ -144,13 +181,73 @@ function processBatch() {
 
   let processedThisBatch = 0;
 
-  while (job.nextIndex < job.placeIds.length) {
+  while (processedThisBatch < batchSize) {
     const elapsedSeconds = (new Date().getTime() - startTime) / 1000;
-    if (elapsedSeconds > maxSeconds) break;   // time budget guard — leaves safety margin under the platform limit
-    if (processedThisBatch >= batchSize) break; // count guard
+    if (elapsedSeconds > maxSeconds) break;
+
+    // ---------------------------------------------------------------
+    // If the currently discovered page is exhausted, fetch the next
+    // Places page only if the job still needs more results.
+    // ---------------------------------------------------------------
+    if (job.nextIndex >= job.placeIds.length) {
+      const reachedTarget = job.placeIds.length >= job.targetMaxBusinesses;
+      const noMorePages = !job.nextPageToken;
+
+      if (reachedTarget || noMorePages) break;
+
+      // Leave a safety margin so the page request itself cannot push the
+      // execution into the hard Apps Script timeout.
+      if (elapsedSeconds > maxSeconds - 20) break;
+
+      // Google requires a short activation delay before a newly issued
+      // page token can be used. If this execution is already well separated
+      // from the previous page request, no meaningful delay is needed.
+      const ageMs = new Date().getTime() - Number(job.lastPageFetchedAt || 0);
+      if (ageMs < 2500) Utilities.sleep(2500 - ageMs);
+
+      const remaining = job.targetMaxBusinesses - job.placeIds.length;
+      const pageSize = Math.min(PLACES_PAGE_SIZE, remaining);
+      let page;
+
+      try {
+        page = fetchPlacesSearchPage(
+          job.industry,
+          job.location,
+          job.nextPageToken,
+          pageSize
+        );
+      } catch (e) {
+        job.stats.errors++;
+        Logger.log('Places page fetch failed: ' + e.message);
+        saveJobState(job);
+        break;
+      }
+
+      const knownIds = new Set(job.placeIds);
+      let added = 0;
+      page.places.forEach(place => {
+        if (!place || !place.id || knownIds.has(place.id)) return;
+        job.placeIds.push(place.id);
+        knownIds.add(place.id);
+        added++;
+      });
+
+      job.nextPageToken = page.nextPageToken;
+      job.pagesFetched = Number(job.pagesFetched || 0) + 1;
+      job.lastPageFetchedAt = new Date().getTime();
+      saveJobState(job);
+
+      Logger.log(
+        'Fetched Places page ' + job.pagesFetched + ': added ' + added +
+        ' new place(s); discovered ' + job.placeIds.length + '/' + job.targetMaxBusinesses + '.'
+      );
+
+      if (!added && !job.nextPageToken) break;
+      if (!added && job.nextPageToken) continue;
+    }
 
     const placeId = job.placeIds[job.nextIndex];
-    job.nextIndex++;          // advance FIRST so a mid-processing crash never reprocesses this same id
+    job.nextIndex++; // advance first so a killed execution does not repeat this ID
     processedThisBatch++;
 
     try {
@@ -173,17 +270,27 @@ function processBatch() {
         details.nationalPhoneNumber,
         details.formattedAddress
       );
+
       if (existingFingerprints.has(fingerprint)) {
         job.stats.rejected++;
-        appendRejectedRow(details.displayName ? details.displayName.text : '', 'Duplicate (matching name/phone/address)', placeId);
+        appendRejectedRow(
+          details.displayName ? details.displayName.text : '',
+          'Duplicate (matching name/phone/address)',
+          placeId
+        );
         saveJobState(job);
         continue;
       }
+
       existingFingerprints.add(fingerprint);
 
       if ((details.rating || 0) < minRating || (details.userRatingCount || 0) < minReviews) {
         job.stats.rejected++;
-        appendRejectedRow(details.displayName ? details.displayName.text : '', 'Below minimum rating/review threshold', placeId);
+        appendRejectedRow(
+          details.displayName ? details.displayName.text : '',
+          'Below minimum rating/review threshold',
+          placeId
+        );
         saveJobState(job);
         continue;
       }
@@ -204,33 +311,53 @@ function processBatch() {
       existingIds.add(placeId);
 
     } catch (e) {
-      // One failed website/API request never stops the batch — log and move on.
       job.stats.errors++;
       Logger.log('Error processing place ' + placeId + ': ' + e.message);
     }
 
-    saveJobState(job); // persist progress after EVERY lead, per the resumability requirement
+    // Persist after EVERY lead.
+    saveJobState(job);
   }
 
   const execSeconds = (new Date().getTime() - startTime) / 1000;
-  const done = job.nextIndex >= job.placeIds.length;
+  const discoveredDone = job.nextIndex >= job.placeIds.length;
+  const targetReached = job.placeIds.length >= job.targetMaxBusinesses;
+  const noMorePages = !job.nextPageToken;
+  const done = discoveredDone && (targetReached || noMorePages);
 
   if (done) {
     job.status = 'complete';
     saveJobState(job);
     clearContinuationTrigger();
+
     appendLogRow(
-      'Generate Leads (batched)', job.stats.checked, job.stats.qualified, job.stats.rejected,
-      job.stats.errors, execSeconds, job.industry + ' in ' + job.city + ', ' + job.state + ' — COMPLETE'
+      'Generate Leads (batched)',
+      job.stats.checked,
+      job.stats.qualified,
+      job.stats.rejected,
+      job.stats.errors,
+      execSeconds,
+      job.industry + ' in ' + job.city + ', ' + job.state +
+        ' — COMPLETE (' + job.placeIds.length + ' places discovered)'
     );
+
     notifyJobComplete(job);
   } else {
     scheduleContinuation();
+
+    const remainingKnown = Math.max(0, job.placeIds.length - job.nextIndex);
+    const morePages = !!job.nextPageToken && !targetReached;
+
     appendLogRow(
-      'Generate Leads (batch)', processedThisBatch, job.stats.qualified, job.stats.rejected,
-      job.stats.errors, execSeconds,
-      job.industry + ' in ' + job.city + ', ' + job.state + ' — batch done, ' +
-      (job.placeIds.length - job.nextIndex) + ' remaining'
+      'Generate Leads (batch)',
+      processedThisBatch,
+      job.stats.qualified,
+      job.stats.rejected,
+      job.stats.errors,
+      execSeconds,
+      job.industry + ' in ' + job.city + ', ' + job.state +
+        ' — batch done, ' + remainingKnown + ' known remaining' +
+        (morePages ? ' + more Places pages' : '')
     );
   }
 }
@@ -239,17 +366,11 @@ function processBatch() {
 // AUTO-CONTINUATION VIA TIME-DRIVEN TRIGGER
 // =========================================================================
 
-/**
- * Schedules processBatch() to run again shortly, deleting any previous
- * continuation trigger first so they never pile up. Requires the
- * script.scriptapp authorization scope — Apps Script will prompt for this
- * the first time a trigger is created; this is expected.
- */
 function scheduleContinuation() {
   clearContinuationTrigger();
   const trigger = ScriptApp.newTrigger('processBatch')
     .timeBased()
-    .after(60 * 1000) // 1 minute is the practical minimum for one-time triggers
+    .after(60 * 1000)
     .create();
   PropertiesService.getScriptProperties().setProperty(TRIGGER_PROPERTY_KEY, trigger.getUniqueId());
 }
@@ -258,17 +379,19 @@ function clearContinuationTrigger() {
   const props = PropertiesService.getScriptProperties();
   const triggerId = props.getProperty(TRIGGER_PROPERTY_KEY);
   if (!triggerId) return;
+
   ScriptApp.getProjectTriggers().forEach(t => {
     if (t.getUniqueId() === triggerId) ScriptApp.deleteTrigger(t);
   });
+
   props.deleteProperty(TRIGGER_PROPERTY_KEY);
 }
 
-/** Shows a completion alert if run interactively; falls back to logging if run via a trigger (no UI context). */
 function notifyJobComplete(job) {
   try {
     SpreadsheetApp.getUi().alert(
       'Lead generation complete: "' + job.industry + '" in ' + job.city + ', ' + job.state + '\n\n' +
+      'Places discovered: ' + job.placeIds.length + '\n' +
       'Checked: ' + job.stats.checked + '\n' +
       'Qualified: ' + job.stats.qualified + '\n' +
       'Rejected: ' + job.stats.rejected + '\n' +
@@ -295,11 +418,18 @@ function menuContinueLeadJob() {
 function menuJobStatus() {
   const job = getJobState();
   const ui = SpreadsheetApp.getUi();
-  if (!job) { ui.alert('No lead generation job on record.'); return; }
+  if (!job) {
+    ui.alert('No lead generation job on record.');
+    return;
+  }
+
   ui.alert(
     'Job: ' + job.industry + ' in ' + job.city + ', ' + job.state + '\n' +
     'Status: ' + job.status + '\n' +
-    'Progress: ' + job.nextIndex + ' / ' + job.placeIds.length + '\n' +
+    'Processed/discovered: ' + job.nextIndex + ' / ' + job.placeIds.length + '\n' +
+    'Target: ' + job.targetMaxBusinesses + '\n' +
+    'Places pages fetched: ' + (job.pagesFetched || 1) + '\n' +
+    'More Places pages: ' + (job.nextPageToken ? 'Yes' : 'No') + '\n' +
     'Checked: ' + job.stats.checked + ' | Qualified: ' + job.stats.qualified +
     ' | Rejected: ' + job.stats.rejected + ' | Errors: ' + job.stats.errors
   );
@@ -308,5 +438,7 @@ function menuJobStatus() {
 function menuCancelLeadJob() {
   clearContinuationTrigger();
   clearJobState();
-  SpreadsheetApp.getUi().alert('Current lead generation job cancelled. Any leads already saved to Raw_Data/Qualified_Leads remain untouched.');
+  SpreadsheetApp.getUi().alert(
+    'Current lead generation job cancelled. Any leads already saved to Raw_Data/Qualified_Leads remain untouched.'
+  );
 }
