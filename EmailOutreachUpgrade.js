@@ -64,7 +64,6 @@ function menuUpgradeOutreachEmails() {
     const existingVersion = String(row[col(PART_D_EMAIL_VERSION_HEADER)] || '').trim();
 
     if (!placeId || /sent|replied|follow-up/i.test(status)) { skipped++; return; }
-    // v6 upgrades older Part D drafts; future runs skip already-upgraded v6 drafts.
     if (existingVersion === PART_D_EMAIL_VERSION && gmailId) { skipped++; return; }
 
     const lead = qByPlace[placeId];
@@ -175,8 +174,6 @@ function getPartDStructure_(lead, observation, hypothesis, why, capability) {
   const i = String(lead.industry || '').toLowerCase();
   const context = String(lead.websiteStatus || '').toLowerCase();
 
-  // New v6 structure: observation -> relevant implication -> one hypothesis -> VASHA -> low-pressure CTA.
-  // This deliberately removes the repeated generic "a lot of businesses..." paragraph.
   if (/no website|without website|not found/.test(context)) {
     return makeStructure_(
       'A quick idea for ' + business,
@@ -196,47 +193,21 @@ function getPartDStructure_(lead, observation, hypothesis, why, capability) {
   const idea = 'I was wondering whether ' + hypothesis + '.';
   const close = capability + ' I cannot tell from the outside if this is actually a priority, but if it is relevant, I can send 2–3 concrete ideas based on what I noticed.';
 
-  return makeStructure_(
-    subject,
-    'I came across ' + business + ' and noticed ' + observation + '.',
-    implication,
-    idea + ' ' + why,
-    close
-  );
+  return makeStructure_(subject, 'I came across ' + business + ' and noticed ' + observation + '.', implication, idea + ' ' + why, close);
 }
 
 function getPartDImplication_(lead, observation) {
   const i = String(lead.industry || '').toLowerCase();
-  if (/property|real estate|realt/.test(i)) {
-    return 'That caught my attention because property-management businesses often have several enquiry and follow-up steps between an owner showing interest and becoming a real opportunity.';
-  }
-  if (/dent|clinic|chiro|vet|medical|health/.test(i)) {
-    return 'That caught my attention because a prospective patient often needs a very clear next step before deciding to call, book, or submit an enquiry.';
-  }
-  if (/hvac|plumb|electric|roof|landscap|cleaning|pest|contractor/.test(i)) {
-    return 'That caught my attention because service businesses can lose time when enquiries arrive without the details needed to qualify or follow up.';
-  }
-  if (/law|legal|attorney|lawyer/.test(i)) {
-    return 'That caught my attention because legal enquiries often involve collecting enough context before the team can decide what happens next.';
-  }
-  if (/salon|barber|spa|nail|beauty|wellness/.test(i)) {
-    return 'That caught my attention because the gap between someone browsing and actually booking is often only a few small steps.';
-  }
-  if (/auto|mechanic|repair|tire|car|collision/.test(i)) {
-    return 'That caught my attention because service requests are easier to handle when the right vehicle and job details are captured early.';
-  }
-  if (/manufactur|factory|industrial|wholesale|distribut|logistics|warehouse|supplier/.test(i)) {
-    return 'That caught my attention because operational requests can create a surprising amount of manual coordination when information moves between people or systems.';
-  }
-  if (/restaurant|cafe|caf|diner|bakery|catering|food/.test(i)) {
-    return 'That caught my attention because small points of friction can affect whether a customer takes the next step.';
-  }
-  if (/gym|fitness|yoga|pilates|studio|sports/.test(i)) {
-    return 'That caught my attention because turning online interest into an enquiry or booking usually depends on making the next step obvious.';
-  }
-  if (/school|college|education|academy|tuition|university|coaching/.test(i)) {
-    return 'That caught my attention because prospective students and parents often need a clear path from an initial question to the next step.';
-  }
+  if (/property|real estate|realt/.test(i)) return 'That caught my attention because property-management businesses often have several enquiry and follow-up steps between an owner showing interest and becoming a real opportunity.';
+  if (/dent|clinic|chiro|vet|medical|health/.test(i)) return 'That caught my attention because a prospective patient often needs a very clear next step before deciding to call, book, or submit an enquiry.';
+  if (/hvac|plumb|electric|roof|landscap|cleaning|pest|contractor/.test(i)) return 'That caught my attention because service businesses can lose time when enquiries arrive without the details needed to qualify or follow up.';
+  if (/law|legal|attorney|lawyer/.test(i)) return 'That caught my attention because legal enquiries often involve collecting enough context before the team can decide what happens next.';
+  if (/salon|barber|spa|nail|beauty|wellness/.test(i)) return 'That caught my attention because the gap between someone browsing and actually booking is often only a few small steps.';
+  if (/auto|mechanic|repair|tire|car|collision/.test(i)) return 'That caught my attention because service requests are easier to handle when the right vehicle and job details are captured early.';
+  if (/manufactur|factory|industrial|wholesale|distribut|logistics|warehouse|supplier/.test(i)) return 'That caught my attention because operational requests can create a surprising amount of manual coordination when information moves between people or systems.';
+  if (/restaurant|cafe|caf|diner|bakery|catering|food/.test(i)) return 'That caught my attention because small points of friction can affect whether a customer takes the next step.';
+  if (/gym|fitness|yoga|pilates|studio|sports/.test(i)) return 'That caught my attention because turning online interest into an enquiry or booking usually depends on making the next step obvious.';
+  if (/school|college|education|academy|tuition|university|coaching/.test(i)) return 'That caught my attention because prospective students and parents often need a clear path from an initial question to the next step.';
   return 'That caught my attention because small gaps around enquiries, follow-ups, or handoffs can create unnecessary friction even when the core business is working well.';
 }
 
@@ -253,9 +224,7 @@ function makeStructure_(subject, opening, implication, idea, close) {
 }
 
 function getPartDObservation_(lead) {
-  if (lead.websiteStatus === WEBSITE_STATUS.NO_WEBSITE) {
-    return 'there does not appear to be a dedicated website listed for the business';
-  }
+  if (lead.websiteStatus === WEBSITE_STATUS.NO_WEBSITE) return 'there does not appear to be a dedicated website listed for the business';
   const obs = getStrongestObservation(lead.notes, lead.websiteStatus);
   return obs || 'there may be a small gap in the current online experience';
 }
@@ -289,7 +258,7 @@ function getPartDWhy_(lead) {
 }
 
 function getPartDCapability_(lead) {
-  return 'At VASHA Technologies, I am building practical solutions around AI automation, custom software, and business systems.';
+  return 'At VASHA Technologies, I am building practical solutions around AI automation, custom software, custom systems, and business workflows.';
 }
 
 function escapeHtml_(value) {
