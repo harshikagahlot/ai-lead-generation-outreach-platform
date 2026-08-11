@@ -1,21 +1,22 @@
 /**
  * EmailOutreachUpgrade.js
- * Part D: industry-aware, hypothesis-led outreach + VASHA HTML signature.
+ * Part D v5: concise, industry-aware, hypothesis-led outreach + VASHA signature.
  * NEVER sends email automatically.
  *
  * Copy principles:
- * - State only observations supported by lead data.
- * - Never diagnose a business problem from the outside.
- * - Use industry context to suggest possibilities, not claims.
- * - Explain VASHA honestly as an early-stage initiative being built.
- * - Keep the outreach short, useful, and easy to decline.
+ * - Keep the real observation.
+ * - Keep the systems/customer-journey insight.
+ * - Never diagnose a problem from the outside.
+ * - Use industry context as a hypothesis, not a claim.
+ * - Explain VASHA briefly and honestly.
+ * - Keep the email short enough for cold outreach.
  */
 
 const PART_D_OBSERVATION_HEADER = 'Outreach Observation';
 const PART_D_HYPOTHESIS_HEADER = 'Improvement Hypothesis';
 const PART_D_WHY_HEADER = 'Why It May Matter';
 const PART_D_EMAIL_VERSION_HEADER = 'Email Version';
-const PART_D_EMAIL_VERSION = 'Part D v4';
+const PART_D_EMAIL_VERSION = 'Part D v5';
 
 function menuUpgradeOutreachEmails() {
   const ss = SpreadsheetApp.getActive();
@@ -58,12 +59,15 @@ function menuUpgradeOutreachEmails() {
     const placeId = String(row[placeCol] || '').trim();
     const gmailId = String(row[gmailIdCol] || '').trim();
     const existingVersion = String(row[col(PART_D_EMAIL_VERSION_HEADER)] || '').trim();
+
     if (!placeId || /sent|replied|follow-up/i.test(status)) { skipped++; return; }
+    // v5 intentionally upgrades existing v4 drafts; future runs skip v5 drafts.
     if (existingVersion === PART_D_EMAIL_VERSION && gmailId) { skipped++; return; }
 
     const lead = qByPlace[placeId];
     if (!lead || !lead.email || String(lead.recommendedChannel || '').trim().toUpperCase() !== 'EMAIL') { skipped++; return; }
     if (!isValidOutreachEmail(lead.email)) { skipped++; return; }
+
     const readinessScore = Number(lead.readinessScore) || 0;
     if (readinessScore < 50 || !hasConcreteObservation(lead)) { skipped++; return; }
 
@@ -73,6 +77,7 @@ function menuUpgradeOutreachEmails() {
       hypValues[i] = [email.hypothesis];
       whyValues[i] = [email.why];
       versionValues[i] = [PART_D_EMAIL_VERSION];
+
       drafts.getRange(i + 2, subjectCol + 1).setValue(email.subject);
       drafts.getRange(i + 2, bodyCol + 1).setValue(email.body);
 
@@ -96,6 +101,7 @@ function menuUpgradeOutreachEmails() {
         drafts.getRange(i + 2, gmailIdCol + 1).setValue(draft.getId());
         created++;
       }
+
       drafts.getRange(i + 2, statusCol + 1).setValue('Part D — Gmail Draft Ready');
       upgraded++;
     } catch (err) {
@@ -110,7 +116,7 @@ function menuUpgradeOutreachEmails() {
   drafts.getRange(2, col(PART_D_EMAIL_VERSION_HEADER) + 1, versionValues.length, 1).setValues(versionValues);
 
   SpreadsheetApp.getUi().alert(
-    'Part D v4 complete.\n\n' +
+    'Part D v5 complete.\n\n' +
     'Upgraded: ' + upgraded + '\n' +
     'New Gmail drafts: ' + created + '\n' +
     'Updated Gmail drafts: ' + updated + '\n' +
@@ -141,14 +147,21 @@ function buildPartDEmail_(lead) {
   const body =
     'Hi ' + firstName + ',\n\n' +
     structure.text +
-    '\n\nBest regards,\n\nHarshika\nBusiness Development | VASHA Technologies\nAI Automation • Custom Software • Business Systems\n📧 harshikagahlot01@gmail.com';
+    '\n\nBest regards,\n\nHarshika\nBusiness Development | VASHA Technologies\n' +
+    'AI Automation • Custom Software • Business Systems\n' +
+    '📧 harshikagahlot01@gmail.com';
 
-  const htmlBody = '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.65;color:#172033;max-width:680px;">' +
-    '<p>Hi ' + escapeHtml_(firstName) + ',</p>' + structure.html +
-    '<p>Best regards,<br><br><strong>Harshika</strong><br>Business Development | VASHA Technologies<br>' +
-    '<span style="color:#5b667a;">AI Automation &bull; Custom Software &bull; Business Systems</span><br>' +
-    '<span style="color:#5b667a;">&#128231; harshikagahlot01@gmail.com</span></p>' +
-    '<img src="cid:vashaLogo" alt="Vasha Technologies" width="220" style="display:block;margin-top:8px;max-width:100%;height:auto;">' +
+  const htmlBody =
+    '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.55;color:#172033;max-width:680px;">' +
+      '<p style="margin:0 0 14px;">Hi ' + escapeHtml_(firstName) + ',</p>' +
+      structure.html +
+      '<p style="margin:18px 0 0;">Best regards,<br><br>' +
+        '<strong>Harshika</strong><br>' +
+        'Business Development | VASHA Technologies<br>' +
+        '<span style="color:#5b667a;">AI Automation &bull; Custom Software &bull; Business Systems</span><br>' +
+        '<span style="color:#5b667a;">&#128231; harshikagahlot01@gmail.com</span>' +
+      '</p>' +
+      '<img src="cid:vashaLogo" alt="VASHA Technologies" width="180" style="display:block;width:180px;max-width:180px;height:auto;margin-top:10px;">' +
     '</div>';
 
   return { subject, body, htmlBody, observation, hypothesis, why, capability };
@@ -160,19 +173,18 @@ function getPartDStructure_(lead, observation, hypothesis, why, capability) {
   const context = String(lead.websiteStatus || '').toLowerCase();
 
   const systemsLine =
-    'A lot of businesses do not necessarily have a marketing problem. Sometimes the bigger opportunity is somewhere around the system behind the customer journey — enquiries, follow-ups, operations, or internal handoffs.';
+    'A lot of businesses do not necessarily have a marketing problem. Sometimes the bigger opportunity is the system around the customer journey — enquiries, follow-ups, operations, or handoffs.';
 
   const nonAssumptionLine =
-    'I cannot tell from the outside whether any of that is actually a priority for ' + business + ', so I do not want to assume there is a problem.';
+    'I cannot tell from the outside whether that is actually a priority for ' + business + ', so I do not want to assume there is a problem.';
 
   const opportunityLine =
     'Depending on how you currently operate, I was wondering whether ' + hypothesis + '.';
 
-  const valueLine =
-    why + ' If something like this is already handled well on your side, please ignore the thought.';
+  const valueLine = why + ' If that is already handled well on your side, please ignore the thought.';
 
   const closeLine =
-    'I am currently building VASHA Technologies as an early-stage initiative around AI automation, custom software, and practical business systems. If the idea is relevant, I can send over 2–3 concrete ideas based on what I noticed — no pitch deck, just a short, useful message.';
+    capability + ' If the idea is relevant, I can send 2–3 concrete suggestions based on what I noticed — no pitch deck, just a short useful message.';
 
   if (/no website|without website|not found/.test(context)) {
     return makeStructure_(
@@ -184,53 +196,36 @@ function getPartDStructure_(lead, observation, hypothesis, why, capability) {
     );
   }
 
-  if (/dent|clinic|chiro|vet|medical|health/.test(i)) {
-    return makeStructure_('A quick idea for ' + business, 'I was looking into ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
-  }
-  if (/property|real estate|realt|property management|apartment|leasing/.test(i)) {
-    return makeStructure_('A quick idea for ' + business, 'I came across ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
-  }
-  if (/gym|fitness|yoga|pilates|studio|sports|martial/.test(i)) {
-    return makeStructure_('A quick idea for ' + business, 'I was looking through ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
-  }
-  if (/salon|barber|spa|nail|beauty|wellness/.test(i)) {
-    return makeStructure_('A quick idea for ' + business, 'I came across ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
-  }
-  if (/hvac|plumb|electric|roof|landscap|cleaning|pest|contractor|construction|home service/.test(i)) {
-    return makeStructure_('A quick idea for ' + business, 'I was looking into ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
-  }
-  if (/auto|mechanic|repair|tire|car|collision|detailing/.test(i)) {
-    return makeStructure_('A quick idea for ' + business, 'I came across ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
-  }
-  if (/law|legal|attorney|lawyer|accounting|accountant|insurance|financial/.test(i)) {
-    return makeStructure_('A workflow idea for ' + business, 'I was looking into ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
-  }
-  if (/restaurant|cafe|caf|diner|bakery|catering|food|bar|coffee/.test(i)) {
-    return makeStructure_('A quick idea for ' + business, 'I came across ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
-  }
-  if (/manufactur|factory|industrial|wholesale|distribut|logistics|warehouse|supplier/.test(i)) {
-    return makeStructure_('An operations idea for ' + business, 'I was looking into ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
-  }
-  if (/school|college|education|training|academy|tuition|university|coaching/.test(i)) {
-    return makeStructure_('A digital idea for ' + business, 'I came across ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
-  }
+  let subject = 'A quick idea for ' + business;
+  if (/law|legal|attorney|lawyer|accounting|accountant|insurance|financial/.test(i)) subject = 'A workflow idea for ' + business;
+  if (/manufactur|factory|industrial|wholesale|distribut|logistics|warehouse|supplier/.test(i)) subject = 'An operations idea for ' + business;
+  if (/school|college|education|training|academy|tuition|university|coaching/.test(i)) subject = 'A digital idea for ' + business;
 
-  return makeStructure_('A quick idea for ' + business, 'I was looking into ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
+  return makeStructure_(
+    subject,
+    'I came across ' + business + ' and noticed ' + observation + '.',
+    systemsLine + ' ' + nonAssumptionLine,
+    opportunityLine + ' ' + valueLine,
+    closeLine
+  );
 }
 
 function makeStructure_(subject, opening, context, idea, close) {
   return {
     subject: subject,
     text: opening + '\n\n' + context + '\n\n' + idea + '\n\n' + close,
-    html: '<p>' + escapeHtml_(opening) + '</p>' +
-      '<p>' + escapeHtml_(context) + '</p>' +
-      '<p>' + escapeHtml_(idea) + '</p>' +
-      '<p>' + escapeHtml_(close) + '</p>'
+    html:
+      '<p style="margin:0 0 14px;">' + escapeHtml_(opening) + '</p>' +
+      '<p style="margin:0 0 14px;">' + escapeHtml_(context) + '</p>' +
+      '<p style="margin:0 0 14px;">' + escapeHtml_(idea) + '</p>' +
+      '<p style="margin:0;">' + escapeHtml_(close) + '</p>'
   };
 }
 
 function getPartDObservation_(lead) {
-  if (lead.websiteStatus === WEBSITE_STATUS.NO_WEBSITE) return 'there does not appear to be a dedicated website listed for the business';
+  if (lead.websiteStatus === WEBSITE_STATUS.NO_WEBSITE) {
+    return 'there does not appear to be a dedicated website listed for the business';
+  }
   const obs = getStrongestObservation(lead.notes, lead.websiteStatus);
   return obs || 'there may be a small gap in the current online experience';
 }
@@ -278,6 +273,9 @@ function getPartDCapability_(lead) {
 
 function escapeHtml_(value) {
   return String(value || '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/\"/g, '&quot;').replace(/'/g, '&#39;');
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
