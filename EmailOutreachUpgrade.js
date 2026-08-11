@@ -2,13 +2,20 @@
  * EmailOutreachUpgrade.js
  * Part D: industry-aware, hypothesis-led outreach + VASHA HTML signature.
  * NEVER sends email automatically.
+ *
+ * Copy principles:
+ * - State only observations supported by lead data.
+ * - Never diagnose a business problem from the outside.
+ * - Use industry context to suggest possibilities, not claims.
+ * - Explain VASHA honestly as an early-stage initiative being built.
+ * - Keep the outreach short, useful, and easy to decline.
  */
 
 const PART_D_OBSERVATION_HEADER = 'Outreach Observation';
 const PART_D_HYPOTHESIS_HEADER = 'Improvement Hypothesis';
 const PART_D_WHY_HEADER = 'Why It May Matter';
 const PART_D_EMAIL_VERSION_HEADER = 'Email Version';
-const PART_D_EMAIL_VERSION = 'Part D v3';
+const PART_D_EMAIL_VERSION = 'Part D v4';
 
 function menuUpgradeOutreachEmails() {
   const ss = SpreadsheetApp.getActive();
@@ -103,7 +110,7 @@ function menuUpgradeOutreachEmails() {
   drafts.getRange(2, col(PART_D_EMAIL_VERSION_HEADER) + 1, versionValues.length, 1).setValues(versionValues);
 
   SpreadsheetApp.getUi().alert(
-    'Part D complete.\n\n' +
+    'Part D v4 complete.\n\n' +
     'Upgraded: ' + upgraded + '\n' +
     'New Gmail drafts: ' + created + '\n' +
     'Updated Gmail drafts: ' + updated + '\n' +
@@ -131,12 +138,16 @@ function buildPartDEmail_(lead) {
   const structure = getPartDStructure_(lead, observation, hypothesis, why, capability);
   const subject = structure.subject || 'A quick idea for ' + business;
 
-  const body = 'Hi ' + firstName + ',\n\n' + structure.text + '\n\nBest,\n\nHarshika\nVASHA Technologies\nAI Automation • Custom Software • Business Systems';
+  const body =
+    'Hi ' + firstName + ',\n\n' +
+    structure.text +
+    '\n\nBest regards,\n\nHarshika\nBusiness Development | VASHA Technologies\nAI Automation • Custom Software • Business Systems\n📧 harshikagahlot01@gmail.com';
 
-  const htmlBody = '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6;color:#172033;">' +
+  const htmlBody = '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.65;color:#172033;max-width:680px;">' +
     '<p>Hi ' + escapeHtml_(firstName) + ',</p>' + structure.html +
-    '<p>Best,<br><br><strong>Harshika</strong><br>VASHA Technologies<br>' +
-    '<span style="color:#5b667a;">AI Automation &bull; Custom Software &bull; Business Systems</span></p>' +
+    '<p>Best regards,<br><br><strong>Harshika</strong><br>Business Development | VASHA Technologies<br>' +
+    '<span style="color:#5b667a;">AI Automation &bull; Custom Software &bull; Business Systems</span><br>' +
+    '<span style="color:#5b667a;">&#128231; harshikagahlot01@gmail.com</span></p>' +
     '<img src="cid:vashaLogo" alt="Vasha Technologies" width="220" style="display:block;margin-top:8px;max-width:100%;height:auto;">' +
     '</div>';
 
@@ -144,112 +155,76 @@ function buildPartDEmail_(lead) {
 }
 
 function getPartDStructure_(lead, observation, hypothesis, why, capability) {
+  const business = lead.name || 'your business';
   const i = String(lead.industry || '').toLowerCase();
   const context = String(lead.websiteStatus || '').toLowerCase();
 
+  const systemsLine =
+    'A lot of businesses do not necessarily have a marketing problem. Sometimes the bigger opportunity is somewhere around the system behind the customer journey — enquiries, follow-ups, operations, or internal handoffs.';
+
+  const nonAssumptionLine =
+    'I cannot tell from the outside whether any of that is actually a priority for ' + business + ', so I do not want to assume there is a problem.';
+
+  const opportunityLine =
+    'Depending on how you currently operate, I was wondering whether ' + hypothesis + '.';
+
+  const valueLine =
+    why + ' If something like this is already handled well on your side, please ignore the thought.';
+
+  const closeLine =
+    'I am currently building VASHA Technologies as an early-stage initiative around AI automation, custom software, and practical business systems. If the idea is relevant, I can send over 2–3 concrete ideas based on what I noticed — no pitch deck, just a short, useful message.';
+
   if (/no website|without website|not found/.test(context)) {
-    return makeStructure_('A digital idea for ' + (lead.name || 'your business'),
-      'I came across ' + (lead.name || 'your business') + ' and noticed there does not appear to be a dedicated website listed for the business.',
-      'For a business like yours, a focused online presence could make it easier for new customers to understand what you offer and take the next step.',
-      capability,
-      'If you are already working on this, no worries. If not, I would be happy to share a simple approach.'
+    return makeStructure_(
+      'A quick idea for ' + business,
+      'I came across ' + business + ' and noticed there does not appear to be a dedicated website listed for the business.',
+      systemsLine + ' ' + nonAssumptionLine,
+      'If you are already working on your online presence, no worries. If not, there may be a simple opportunity to make it easier for someone discovering you online to understand what you offer and take the next step.',
+      closeLine
     );
   }
 
   if (/dent|clinic|chiro|vet|medical|health/.test(i)) {
-    return makeStructure_('A quick idea for ' + (lead.name || 'your practice'),
-      'I was looking into ' + (lead.name || 'your practice') + ' and noticed ' + observation + '.',
-      'It made me wonder whether ' + hypothesis + '.', capability,
-      why + ' If you already have something like this in place, no worries — I would still be happy to share the thought.'
-    );
+    return makeStructure_('A quick idea for ' + business, 'I was looking into ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
   }
-
   if (/property|real estate|realt|property management|apartment|leasing/.test(i)) {
-    return makeStructure_('Idea for ' + (lead.name || 'your property business'),
-      'I came across ' + (lead.name || 'your business') + ' and noticed ' + observation + '.',
-      'One opportunity I was thinking about is whether ' + hypothesis + '.', capability,
-      'That could help turn more owner interest into structured enquiries without adding much manual back-and-forth. If relevant, I can share the idea.'
-    );
+    return makeStructure_('A quick idea for ' + business, 'I came across ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
   }
-
   if (/gym|fitness|yoga|pilates|studio|sports|martial/.test(i)) {
-    return makeStructure_('Quick idea for ' + (lead.name || 'your business'),
-      'I was looking through ' + (lead.name || 'your business') + ' and noticed ' + observation + '.',
-      'For a business that relies on local interest, I was thinking whether ' + hypothesis + '.', capability,
-      'The goal would simply be to make the step from interest to enquiry a little easier. Happy to share the idea if useful.'
-    );
+    return makeStructure_('A quick idea for ' + business, 'I was looking through ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
   }
-
   if (/salon|barber|spa|nail|beauty|wellness/.test(i)) {
-    return makeStructure_('A small idea for ' + (lead.name || 'your business'),
-      'I came across ' + (lead.name || 'your business') + ' and noticed ' + observation + '.',
-      'I was wondering whether ' + hypothesis + '.', capability,
-      'It could make the booking journey a little easier for customers and the team. If that sounds relevant, I can send over the idea.'
-    );
+    return makeStructure_('A quick idea for ' + business, 'I came across ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
   }
-
   if (/hvac|plumb|electric|roof|landscap|cleaning|pest|contractor|construction|home service/.test(i)) {
-    return makeStructure_('One idea for ' + (lead.name || 'your business'),
-      'I was looking into ' + (lead.name || 'your business') + ' and noticed ' + observation + '.',
-      'I had a thought that ' + hypothesis + '.', capability,
-      why + ' If you would like, I can show what that could look like.'
-    );
+    return makeStructure_('A quick idea for ' + business, 'I was looking into ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
   }
-
   if (/auto|mechanic|repair|tire|car|collision|detailing/.test(i)) {
-    return makeStructure_('Quick idea for ' + (lead.name || 'your business'),
-      'I came across ' + (lead.name || 'your business') + ' and noticed ' + observation + '.',
-      'I was thinking whether ' + hypothesis + '.', capability,
-      'That could make it easier to capture the right details before the team follows up. If useful, I can share a simple version of the idea.'
-    );
+    return makeStructure_('A quick idea for ' + business, 'I came across ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
   }
-
   if (/law|legal|attorney|lawyer|accounting|accountant|insurance|financial/.test(i)) {
-    return makeStructure_('A workflow idea for ' + (lead.name || 'your business'),
-      'I was looking into ' + (lead.name || 'your business') + ' and noticed ' + observation + '.',
-      'I wondered whether ' + hypothesis + '.', capability,
-      why + ' I can share the idea without assuming it is something you need right now.'
-    );
+    return makeStructure_('A workflow idea for ' + business, 'I was looking into ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
   }
-
   if (/restaurant|cafe|caf|diner|bakery|catering|food|bar|coffee/.test(i)) {
-    return makeStructure_('Quick idea for ' + (lead.name || 'your business'),
-      'I came across ' + (lead.name || 'your business') + ' and noticed ' + observation + '.',
-      'I was thinking whether ' + hypothesis + '.', capability,
-      'The aim would be to remove a little friction from the customer journey. Happy to share the thought if useful.'
-    );
+    return makeStructure_('A quick idea for ' + business, 'I came across ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
   }
-
   if (/manufactur|factory|industrial|wholesale|distribut|logistics|warehouse|supplier/.test(i)) {
-    return makeStructure_('An operations idea for ' + (lead.name || 'your business'),
-      'I was looking into ' + (lead.name || 'your business') + ' and noticed ' + observation + '.',
-      'I wondered whether ' + hypothesis + '.', capability,
-      why + ' If the process is currently handled manually, I would be happy to share a possible approach.'
-    );
+    return makeStructure_('An operations idea for ' + business, 'I was looking into ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
   }
-
   if (/school|college|education|training|academy|tuition|university|coaching/.test(i)) {
-    return makeStructure_('A digital idea for ' + (lead.name || 'your business'),
-      'I came across ' + (lead.name || 'your business') + ' and noticed ' + observation + '.',
-      'I was thinking whether ' + hypothesis + '.', capability,
-      'It could make the next step clearer for students, parents, or staff. If relevant, I can share the idea.'
-    );
+    return makeStructure_('A digital idea for ' + business, 'I came across ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
   }
 
-  return makeStructure_('A quick idea for ' + (lead.name || 'your business'),
-    'I was looking into ' + (lead.name || 'your business') + ' and noticed ' + observation + '.',
-    'I had a thought that ' + hypothesis + '.', capability,
-    why + ' If this is already handled another way, no worries — I can still share the idea if useful.'
-  );
+  return makeStructure_('A quick idea for ' + business, 'I was looking into ' + business + ' and noticed ' + observation + '.', systemsLine + ' ' + nonAssumptionLine, opportunityLine + ' ' + valueLine, closeLine);
 }
 
-function makeStructure_(subject, opening, idea, capability, close) {
+function makeStructure_(subject, opening, context, idea, close) {
   return {
     subject: subject,
-    text: opening + '\n\n' + idea + '\n\n' + capability + '\n\n' + close,
+    text: opening + '\n\n' + context + '\n\n' + idea + '\n\n' + close,
     html: '<p>' + escapeHtml_(opening) + '</p>' +
+      '<p>' + escapeHtml_(context) + '</p>' +
       '<p>' + escapeHtml_(idea) + '</p>' +
-      '<p>' + escapeHtml_(capability) + '</p>' +
       '<p>' + escapeHtml_(close) + '</p>'
   };
 }
@@ -277,28 +252,28 @@ function getPartDHypothesis_(lead) {
 
 function getPartDWhy_(lead) {
   const i = String(lead.industry || '').toLowerCase();
-  if (/property|real estate|realt/.test(i)) return 'It could help the team capture better-qualified property-management enquiries.';
-  if (/dent|clinic|chiro|vet|medical|health/.test(i)) return 'It could make the first step easier for new patients while giving the team cleaner information.';
-  if (/hvac|plumb|electric|roof|auto|mechanic|repair|contractor/.test(i)) return 'It could make incoming service requests easier to qualify and follow up.';
-  if (/law|legal|attorney|lawyer/.test(i)) return 'It could reduce back-and-forth before a consultation.';
-  if (/manufactur|factory|industrial|wholesale|distribut|logistics/.test(i)) return 'It could reduce repetitive coordination and give the team a clearer workflow.';
-  if (/restaurant|cafe|caf|diner|bakery|food/.test(i)) return 'It could make the next customer action clearer and easier.';
-  if (/gym|fitness|yoga|pilates|studio/.test(i)) return 'It could make it easier to turn online interest into actual enquiries.';
-  if (/school|college|education|academy|tuition|university/.test(i)) return 'It could make the enquiry process clearer while reducing repetitive questions for staff.';
-  return 'The goal would be to make the next step easier for the customer and easier for the team.';
+  if (/property|real estate|realt/.test(i)) return 'If relevant, that could help make property-management enquiries easier to capture and qualify.';
+  if (/dent|clinic|chiro|vet|medical|health/.test(i)) return 'If relevant, that could make the first step easier for new patients while giving the team cleaner information.';
+  if (/hvac|plumb|electric|roof|auto|mechanic|repair|contractor/.test(i)) return 'If relevant, that could make incoming service requests easier to qualify and follow up.';
+  if (/law|legal|attorney|lawyer/.test(i)) return 'If relevant, that could reduce some of the back-and-forth before a consultation.';
+  if (/manufactur|factory|industrial|wholesale|distribut|logistics/.test(i)) return 'If relevant, that could reduce repetitive coordination and give the team a clearer workflow.';
+  if (/restaurant|cafe|caf|diner|bakery|food/.test(i)) return 'If relevant, that could make the next customer action clearer and easier.';
+  if (/gym|fitness|yoga|pilates|studio/.test(i)) return 'If relevant, that could make it easier to turn online interest into an enquiry.';
+  if (/school|college|education|academy|tuition|university/.test(i)) return 'If relevant, that could make the enquiry process clearer while reducing repetitive questions for staff.';
+  return 'If relevant, the goal would simply be to make the next step easier for the customer and easier for the team.';
 }
 
 function getPartDCapability_(lead) {
   const i = String(lead.industry || '').toLowerCase();
-  if (/property|real estate|realt/.test(i)) return 'I’m currently building VASHA Technologies around practical digital solutions for businesses, including websites, custom systems and automation — this is the kind of workflow we can help design and build.';
-  if (/dent|clinic|chiro|vet|medical|health/.test(i)) return 'I’m currently building VASHA Technologies around practical digital solutions for businesses, including websites, custom software and automation — particularly where a smoother customer journey can make a difference.';
-  if (/gym|fitness|yoga|pilates|studio|salon|barber|spa|nail|beauty/.test(i)) return 'I’m currently building VASHA Technologies around practical digital solutions for businesses, from customer-facing websites and booking flows to automation and internal systems.';
-  if (/hvac|plumb|electric|roof|auto|mechanic|repair|contractor|cleaning|pest/.test(i)) return 'I’m currently building VASHA Technologies around practical digital solutions for businesses, including websites, enquiry systems and workflow automation.';
-  if (/law|legal|attorney|lawyer|accounting|insurance|financial/.test(i)) return 'I’m currently building VASHA Technologies around practical digital solutions for businesses, including websites, custom systems and automation that can simplify information-heavy workflows.';
-  if (/manufactur|factory|industrial|wholesale|distribut|logistics|warehouse/.test(i)) return 'I’m currently building VASHA Technologies around practical digital solutions for businesses, including internal systems, custom software and workflow automation.';
-  if (/restaurant|cafe|caf|diner|bakery|food|catering/.test(i)) return 'I’m currently building VASHA Technologies around practical digital solutions for businesses, including customer-facing websites, enquiry flows and automation.';
-  if (/school|college|education|academy|tuition|university|coaching/.test(i)) return 'I’m currently building VASHA Technologies around practical digital solutions for businesses, including websites, enquiry systems, custom software and automation.';
-  return 'I’m currently building VASHA Technologies around practical digital solutions for businesses — from websites and custom software to automation and business systems.';
+  if (/property|real estate|realt/.test(i)) return 'At VASHA, I am exploring practical digital solutions for businesses, including websites, custom systems and automation — this is the kind of workflow we could potentially design and build.';
+  if (/dent|clinic|chiro|vet|medical|health/.test(i)) return 'At VASHA, I am exploring practical digital solutions for businesses, including websites, custom software and automation — particularly where a smoother customer journey may be useful.';
+  if (/gym|fitness|yoga|pilates|studio|salon|barber|spa|nail|beauty/.test(i)) return 'At VASHA, I am exploring practical digital solutions for businesses, from customer-facing websites and booking flows to automation and internal systems.';
+  if (/hvac|plumb|electric|roof|auto|mechanic|repair|contractor|cleaning|pest/.test(i)) return 'At VASHA, I am exploring practical digital solutions for businesses, including websites, enquiry systems and workflow automation.';
+  if (/law|legal|attorney|lawyer|accounting|insurance|financial/.test(i)) return 'At VASHA, I am exploring practical digital solutions for businesses, including websites, custom systems and automation for information-heavy workflows.';
+  if (/manufactur|factory|industrial|wholesale|distribut|logistics|warehouse/.test(i)) return 'At VASHA, I am exploring practical digital solutions for businesses, including internal systems, custom software and workflow automation.';
+  if (/restaurant|cafe|caf|diner|bakery|food|catering/.test(i)) return 'At VASHA, I am exploring practical digital solutions for businesses, including customer-facing websites, enquiry flows and automation.';
+  if (/school|college|education|academy|tuition|university|coaching/.test(i)) return 'At VASHA, I am exploring practical digital solutions for businesses, including websites, enquiry systems, custom software and automation.';
+  return 'At VASHA, I am exploring practical digital solutions for businesses — from websites and custom software to automation and business systems.';
 }
 
 function escapeHtml_(value) {
