@@ -1,21 +1,17 @@
 /**
  * EmailFinder.gs
  * -----------------------------------------------------------------------
- * Attempts to discover a publicly-listed email address for a business by
- * checking the homepage (already fetched by WebsiteAnalyzer, reused here
- * to avoid a redundant HTTP request) and a handful of common sub-pages.
+ * Discovers publicly-listed business emails from the website homepage and
+ * common contact pages. Never invents an email.
  *
- * Strategy:
- *   1. Check homepage HTML for mailto: links, then plain-text email matches
- *   2. Fetch common sub-pages (/contact, /about, /privacy, etc.) in parallel
- *      via UrlFetchApp.fetchAll() for speed
- *   3. Filter out known placeholder/template emails (GoDaddy fillers, noreply, etc.)
- *
- * Never invents an email — if nothing is found, returns blank.
+ * Important outreach rule:
+ * Technical email syntax is NOT enough. We also reject known placeholders,
+ * system addresses, file/path artifacts, and suspicious phone-number-style
+ * addresses so they cannot enter the qualified outreach pipeline.
  */
 
 const EMAIL_CANDIDATE_PATHS = [
-  '', // homepage itself (reuses html passed in)
+  '',
   '/contact', '/contact-us', '/contactus',
   '/about', '/about-us', '/aboutus',
   '/privacy', '/privacy-policy',
@@ -23,22 +19,16 @@ const EMAIL_CANDIDATE_PATHS = [
 ];
 
 const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
-
 const GENERIC_EMAIL_PATTERN = /^(info|contact|office|hello|support|sales|admin|team|hi|mail|reception|bookings|service|billing|help|hr)@/i;
 
-/**
- * Classifies an email as a Named Person (high priority) or a Generic Inbox (low priority).
- */
 function classifyEmail(email) {
   if (!email) return '';
   return GENERIC_EMAIL_PATTERN.test(email) ? 'Generic Inbox' : 'Named Person';
 }
 
 /**
- * Checks if an email is valid for outreach (non-empty, syntactically valid, not a placeholder).
- * Note: Email classification (Named vs Generic Inbox) is kept separate from syntax/placeholder validity.
- * @param {string} email
- * @returns {boolean}
+ * Returns true only when an address is acceptable for outreach.
+ * This is intentionally stricter than RFC-style syntax validation.
  */
 function isValidOutreachEmail(email) {
   if (!email || typeof email !== 'string') return false;
@@ -46,17 +36,12 @@ function isValidOutreachEmail(email) {
   if (!trimmed) return false;
   if (!EMAIL_REGEX.test(trimmed)) return false;
   if (isPlaceholderEmail(trimmed)) return false;
+  if (isSuspiciousOutreachEmail(trimmed)) return false;
   return true;
 }
 
-/**
- * Known placeholder/template emails left behind by website builders when a
- * business never replaces the demo contact info. Matching any of these
- * patterns means "not a real contact" — never accept them as a lead's email,
- * even though they're technically valid, real-looking email addresses.
- */
 const PLACEHOLDER_EMAIL_PATTERNS = [
-  /^filler@/i,                    // GoDaddy Website Builder demo contact
+  /^filler@/i,
   /^test@/i,
   /^example@/i,
   /^demo@/i,
@@ -71,52 +56,57 @@ const PLACEHOLDER_EMAIL_PATTERNS = [
   /^name@/i,
   /^info@example/i,
   /^admin@localhost/i,
-  /@godaddy\.com$/i,               // GoDaddy's own domain showing up as a "contact" is always a template leftover
-  /@wixpress\.com$/i,              // Wix internal/demo addresses
-  /@sentry\./i,                    // error-tracking service addresses (e.g., sentry.io, sentry-next.wixpress.com)
+  /@godaddy\.com$/i,
+  /@wixpress\.com$/i,
+  /@sentry\./i,
   /noreply@/i,
   /no-reply@/i,
   /donotreply@/i,
-  
-  // --- Invalid / Malformed matches (e.g., image files that look like emails) ---
-  /\.(jpg|jpeg|png|gif|svg|webp)$/i,  // Image filenames
-  /\b\d{2,4}x\d{2,4}\b/i,             // Image dimensions (e.g., 300x300)
-  /@2x/i,                             // Retina image suffixes
-  /\//,                               // File paths
-  /\\/                                // Windows file paths
+  /\.(jpg|jpeg|png|gif|svg|webp)$/i,
+  /\b\d{2,4}x\d{2,4}\b/i,
+  /@2x/i,
+  /\//,
+  /\\/
 ];
 
 /**
- * Returns true if an email matches a known placeholder/template pattern.
- * @param {string} email - email address to check
- * @returns {boolean} true if the email is a placeholder
+ * Suspicious addresses that are technically valid but look like scraped
+ * phone numbers or machine-generated contact strings rather than a useful
+ * business mailbox. We deliberately keep this narrow to avoid rejecting
+ * legitimate addresses containing normal digits.
  */
+const SUSPICIOUS_OUTREACH_EMAIL_PATTERNS = [
+  /^\d{10}$/i,
+  /^\d{10}[a-z][a-z0-9._-]*$/i
+];
+
 function isPlaceholderEmail(email) {
-  return PLACEHOLDER_EMAIL_PATTERNS.some(pattern => pattern.test(email));
+  const value = String(email || '').trim();
+  return PLACEHOLDER_EMAIL_PATTERNS.some(pattern => pattern.test(value)) || isSuspiciousOutreachEmail(value);
 }
 
-/**
- * Tries to find a public email for a business.
- * @param {string} websiteUrl - normalized site URL (may be blank if no site)
- * @param {string} homepageHtml - HTML already fetched for the homepage, if any
- * @returns {{email: string, sourceUrl: string, type: string}}
- */
+function isSuspiciousOutreachEmail(email) {
+  const value = String(email || '').trim();
+  const at = value.lastIndexOf('@');
+  if (at <= 0) return true;
+  const localPart = value.slice(0, at);
+  return SUSPICIOUS_OUTREACH_EMAIL_PATTERNS.some(pattern => pattern.test(localPart));
+}
+
 function findPublicEmail(websiteUrl, homepageHtml) {
   if (!websiteUrl) return { email: '', sourceUrl: '', type: '' };
 
   const origin = getOrigin(normalizeUrl(websiteUrl));
-
-  // Check homepage HTML we already have before spending more fetches.
   const homepageEmail = extractEmail(homepageHtml);
-  if (homepageEmail) return { email: homepageEmail, sourceUrl: normalizeUrl(websiteUrl), type: classifyEmail(homepageEmail) };
+  if (homepageEmail) {
+    return {
+      email: homepageEmail,
+      sourceUrl: normalizeUrl(websiteUrl),
+      type: classifyEmail(homepageEmail)
+    };
+  }
 
-  // Fetch all candidate sub-pages in ONE parallel batch instead of one at a
-  // time — this is what was taking up to ~11 sequential round-trips (many
-  // seconds) per lead. UrlFetchApp.fetchAll() dispatches every request
-  // together and Google's infrastructure fetches them concurrently, so this
-  // typically finishes in roughly the time of the SLOWEST single request,
-  // not the sum of all of them.
-  const subPaths = EMAIL_CANDIDATE_PATHS.slice(1); // skip '' (homepage, already checked above)
+  const subPaths = EMAIL_CANDIDATE_PATHS.slice(1);
   const requests = subPaths.map(path => ({
     url: origin + path,
     muteHttpExceptions: true,
@@ -128,14 +118,20 @@ function findPublicEmail(websiteUrl, homepageHtml) {
   try {
     responses = UrlFetchApp.fetchAll(requests);
   } catch (e) {
-    return { email: '', sourceUrl: '', type: '' }; // batch fetch itself failed (rare) — treat as no email found
+    return { email: '', sourceUrl: '', type: '' };
   }
 
   for (let i = 0; i < responses.length; i++) {
     try {
       if (responses[i].getResponseCode() >= 400) continue;
       const email = extractEmail(responses[i].getContentText());
-      if (email) return { email: email, sourceUrl: requests[i].url, type: classifyEmail(email) };
+      if (email) {
+        return {
+          email: email,
+          sourceUrl: requests[i].url,
+          type: classifyEmail(email)
+        };
+      }
     } catch (e) {
       continue;
     }
@@ -144,26 +140,21 @@ function findPublicEmail(websiteUrl, homepageHtml) {
   return { email: '', sourceUrl: '', type: '' };
 }
 
-/**
- * Extracts a real (non-placeholder) email from HTML. Checks ALL mailto:
- * links first (preferring these over plain text, since mailto is a more
- * deliberate signal), skipping any that match a known placeholder pattern,
- * then falls back to scanning all plain-text email matches the same way.
- * Returns '' if every match found is a placeholder or none exist at all.
- */
 function extractEmail(html) {
   if (!html) return '';
 
   const mailtoRegex = /mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi;
   let match;
   while ((match = mailtoRegex.exec(html)) !== null) {
-    if (!isPlaceholderEmail(match[1])) return match[1];
+    const candidate = match[1].trim();
+    if (isValidOutreachEmail(candidate)) return candidate;
   }
 
   const plainRegex = new RegExp(EMAIL_REGEX.source, 'gi');
   while ((match = plainRegex.exec(html)) !== null) {
-    if (!isPlaceholderEmail(match[0])) return match[0];
+    const candidate = match[0].trim();
+    if (isValidOutreachEmail(candidate)) return candidate;
   }
 
-  return ''; // every match found (if any) was a placeholder — correctly treat as "no real email"
+  return '';
 }
