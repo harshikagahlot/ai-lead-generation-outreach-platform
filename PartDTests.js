@@ -1,8 +1,21 @@
 /**
  * PartDTests.js
- * Small deterministic smoke tests for the Part D email layer.
+ * Deterministic smoke tests for email validation and Part D v5.
  */
 function testPartD() {
+  // The exact class of bad address that previously slipped through.
+  if (isValidOutreachEmail('6399988845karki@gmail.com')) {
+    throw new Error('FAIL: phone-number-style email was accepted.');
+  }
+
+  if (isValidOutreachEmail('filler@godaddy.com')) {
+    throw new Error('FAIL: placeholder email was accepted.');
+  }
+
+  if (!isValidOutreachEmail('alex@exampleproperty.com')) {
+    throw new Error('FAIL: normal named email was rejected.');
+  }
+
   const lead = {
     name: 'Example Property Management',
     industry: 'Property Management',
@@ -10,10 +23,19 @@ function testPartD() {
     email: 'alex@exampleproperty.com',
     websiteStatus: WEBSITE_STATUS.OUTDATED,
     notes: 'No HTTPS; viewport issue',
-    readinessScore: 60
+    readinessScore: 60,
+    rating: 4.5,
+    reviewCount: 50
   };
 
   if (!hasConcreteObservation(lead)) throw new Error('FAIL: concrete observation gate.');
+
+  const qualification = evaluateQualification(lead.email, lead.websiteStatus);
+  if (!qualification.qualified) throw new Error('FAIL: valid email did not qualify.');
+
+  const badQualification = evaluateQualification('6399988845karki@gmail.com', lead.websiteStatus);
+  if (badQualification.qualified) throw new Error('FAIL: suspicious email qualified.');
+
   const email = buildPartDEmail_(lead);
 
   if (!email.subject || !email.body || !email.htmlBody) throw new Error('FAIL: email fields missing.');
@@ -21,11 +43,17 @@ function testPartD() {
   if (email.body.indexOf('VASHA Technologies') === -1) throw new Error('FAIL: VASHA signature missing.');
   if (email.body.indexOf('Example Property Management') === -1) throw new Error('FAIL: business name missing.');
   if (email.hypothesis.indexOf('owner enquiry') === -1) throw new Error('FAIL: property-management hypothesis missing.');
+  if (email.capability.indexOf('custom systems') === -1) throw new Error('FAIL: VASHA capability missing from generated email.');
   if (email.htmlBody.indexOf('cid:vashaLogo') === -1) throw new Error('FAIL: inline logo reference missing.');
+  if (email.htmlBody.indexOf('width="180"') === -1) throw new Error('FAIL: logo width was not reduced.');
+
+  // Cold outreach should remain concise. This catches accidental copy bloat.
+  const bodyWords = email.body.trim().split(/\s+/).length;
+  if (bodyWords > 190) throw new Error('FAIL: Part D email is too long (' + bodyWords + ' words).');
 
   const blob = getVashaLogoBlob_();
   if (blob.getContentType() !== 'image/jpeg') throw new Error('FAIL: logo blob MIME type.');
 
-  Logger.log('PASS: Part D smoke tests.');
+  Logger.log('PASS: Part D v5 smoke tests.');
   return 'PASS';
 }
