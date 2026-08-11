@@ -1,22 +1,25 @@
 /**
  * EmailOutreachUpgrade.js
- * Part D v5: concise, industry-aware, hypothesis-led outreach + VASHA signature.
+ * Part D v6: concise, observation-led, business-specific cold outreach + VASHA signature.
  * NEVER sends email automatically.
  *
  * Copy principles:
- * - Keep the real observation.
- * - Keep the systems/customer-journey insight.
- * - Never diagnose a problem from the outside.
- * - Use industry context as a hypothesis, not a claim.
- * - Explain VASHA briefly and honestly.
- * - Keep the email short enough for cold outreach.
+ * - Lead with the real observation, not a generic compliment.
+ * - Connect the observation to one concrete business-process hypothesis.
+ * - Keep the non-assumption language, but do not repeat the same generic paragraph.
+ * - Mention VASHA clearly without turning the email into a company pitch.
+ * - Keep the email short enough for genuine cold outreach.
+ *
+ * IMPORTANT:
+ * - This file does NOT change lead qualification or email filtering.
+ * - Existing spam/non-working-email protections remain untouched elsewhere.
  */
 
 const PART_D_OBSERVATION_HEADER = 'Outreach Observation';
 const PART_D_HYPOTHESIS_HEADER = 'Improvement Hypothesis';
 const PART_D_WHY_HEADER = 'Why It May Matter';
 const PART_D_EMAIL_VERSION_HEADER = 'Email Version';
-const PART_D_EMAIL_VERSION = 'Part D v5';
+const PART_D_EMAIL_VERSION = 'Part D v6';
 
 function menuUpgradeOutreachEmails() {
   const ss = SpreadsheetApp.getActive();
@@ -61,7 +64,7 @@ function menuUpgradeOutreachEmails() {
     const existingVersion = String(row[col(PART_D_EMAIL_VERSION_HEADER)] || '').trim();
 
     if (!placeId || /sent|replied|follow-up/i.test(status)) { skipped++; return; }
-    // v5 intentionally upgrades existing v4 drafts; future runs skip v5 drafts.
+    // v6 upgrades older Part D drafts; future runs skip already-upgraded v6 drafts.
     if (existingVersion === PART_D_EMAIL_VERSION && gmailId) { skipped++; return; }
 
     const lead = qByPlace[placeId];
@@ -116,7 +119,7 @@ function menuUpgradeOutreachEmails() {
   drafts.getRange(2, col(PART_D_EMAIL_VERSION_HEADER) + 1, versionValues.length, 1).setValues(versionValues);
 
   SpreadsheetApp.getUi().alert(
-    'Part D v5 complete.\n\n' +
+    'Part D v6 complete.\n\n' +
     'Upgraded: ' + upgraded + '\n' +
     'New Gmail drafts: ' + created + '\n' +
     'Updated Gmail drafts: ' + updated + '\n' +
@@ -147,21 +150,21 @@ function buildPartDEmail_(lead) {
   const body =
     'Hi ' + firstName + ',\n\n' +
     structure.text +
-    '\n\nBest regards,\n\nHarshika\nBusiness Development | VASHA Technologies\n' +
+    '\n\nBest,\n\nHarshika\nBusiness Development | VASHA Technologies\n' +
     'AI Automation • Custom Software • Business Systems\n' +
     '📧 harshikagahlot01@gmail.com';
 
   const htmlBody =
-    '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.55;color:#172033;max-width:680px;">' +
-      '<p style="margin:0 0 14px;">Hi ' + escapeHtml_(firstName) + ',</p>' +
+    '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#172033;max-width:640px;">' +
+      '<p style="margin:0 0 12px;">Hi ' + escapeHtml_(firstName) + ',</p>' +
       structure.html +
-      '<p style="margin:18px 0 0;">Best regards,<br><br>' +
+      '<p style="margin:16px 0 0;">Best,<br><br>' +
         '<strong>Harshika</strong><br>' +
         'Business Development | VASHA Technologies<br>' +
         '<span style="color:#5b667a;">AI Automation &bull; Custom Software &bull; Business Systems</span><br>' +
         '<span style="color:#5b667a;">&#128231; harshikagahlot01@gmail.com</span>' +
       '</p>' +
-      '<img src="cid:vashaLogo" alt="VASHA Technologies" width="180" style="display:block;width:180px;max-width:180px;height:auto;margin-top:10px;">' +
+      '<img src="cid:vashaLogo" alt="VASHA Technologies" width="110" style="display:block;width:110px;max-width:110px;height:auto;margin-top:8px;">' +
     '</div>';
 
   return { subject, body, htmlBody, observation, hypothesis, why, capability };
@@ -172,27 +175,15 @@ function getPartDStructure_(lead, observation, hypothesis, why, capability) {
   const i = String(lead.industry || '').toLowerCase();
   const context = String(lead.websiteStatus || '').toLowerCase();
 
-  const systemsLine =
-    'A lot of businesses do not necessarily have a marketing problem. Sometimes the bigger opportunity is the system around the customer journey — enquiries, follow-ups, operations, or handoffs.';
-
-  const nonAssumptionLine =
-    'I cannot tell from the outside whether that is actually a priority for ' + business + ', so I do not want to assume there is a problem.';
-
-  const opportunityLine =
-    'Depending on how you currently operate, I was wondering whether ' + hypothesis + '.';
-
-  const valueLine = why + ' If that is already handled well on your side, please ignore the thought.';
-
-  const closeLine =
-    capability + ' If the idea is relevant, I can send 2–3 concrete suggestions based on what I noticed — no pitch deck, just a short useful message.';
-
+  // New v6 structure: observation -> relevant implication -> one hypothesis -> VASHA -> low-pressure CTA.
+  // This deliberately removes the repeated generic "a lot of businesses..." paragraph.
   if (/no website|without website|not found/.test(context)) {
     return makeStructure_(
       'A quick idea for ' + business,
       'I came across ' + business + ' and noticed there does not appear to be a dedicated website listed for the business.',
-      systemsLine + ' ' + nonAssumptionLine,
-      'If you are already working on your online presence, no worries. If not, there may be a simple opportunity to make it easier for someone discovering you online to understand what you offer and take the next step.',
-      closeLine
+      'That can make the first step harder for someone discovering the business online, especially when they are deciding whether to enquire.',
+      'I was wondering whether a simple website or enquiry flow could make it easier to understand what you offer and take the next step.',
+      capability + ' If useful, I can send 2–3 concrete ideas based on what I noticed.'
     );
   }
 
@@ -201,23 +192,62 @@ function getPartDStructure_(lead, observation, hypothesis, why, capability) {
   if (/manufactur|factory|industrial|wholesale|distribut|logistics|warehouse|supplier/.test(i)) subject = 'An operations idea for ' + business;
   if (/school|college|education|training|academy|tuition|university|coaching/.test(i)) subject = 'A digital idea for ' + business;
 
+  const implication = getPartDImplication_(lead, observation);
+  const idea = 'I was wondering whether ' + hypothesis + '.';
+  const close = capability + ' I cannot tell from the outside if this is actually a priority, but if it is relevant, I can send 2–3 concrete ideas based on what I noticed.';
+
   return makeStructure_(
     subject,
     'I came across ' + business + ' and noticed ' + observation + '.',
-    systemsLine + ' ' + nonAssumptionLine,
-    opportunityLine + ' ' + valueLine,
-    closeLine
+    implication,
+    idea + ' ' + why,
+    close
   );
 }
 
-function makeStructure_(subject, opening, context, idea, close) {
+function getPartDImplication_(lead, observation) {
+  const i = String(lead.industry || '').toLowerCase();
+  if (/property|real estate|realt/.test(i)) {
+    return 'That caught my attention because property-management businesses often have several enquiry and follow-up steps between an owner showing interest and becoming a real opportunity.';
+  }
+  if (/dent|clinic|chiro|vet|medical|health/.test(i)) {
+    return 'That caught my attention because a prospective patient often needs a very clear next step before deciding to call, book, or submit an enquiry.';
+  }
+  if (/hvac|plumb|electric|roof|landscap|cleaning|pest|contractor/.test(i)) {
+    return 'That caught my attention because service businesses can lose time when enquiries arrive without the details needed to qualify or follow up.';
+  }
+  if (/law|legal|attorney|lawyer/.test(i)) {
+    return 'That caught my attention because legal enquiries often involve collecting enough context before the team can decide what happens next.';
+  }
+  if (/salon|barber|spa|nail|beauty|wellness/.test(i)) {
+    return 'That caught my attention because the gap between someone browsing and actually booking is often only a few small steps.';
+  }
+  if (/auto|mechanic|repair|tire|car|collision/.test(i)) {
+    return 'That caught my attention because service requests are easier to handle when the right vehicle and job details are captured early.';
+  }
+  if (/manufactur|factory|industrial|wholesale|distribut|logistics|warehouse|supplier/.test(i)) {
+    return 'That caught my attention because operational requests can create a surprising amount of manual coordination when information moves between people or systems.';
+  }
+  if (/restaurant|cafe|caf|diner|bakery|catering|food/.test(i)) {
+    return 'That caught my attention because small points of friction can affect whether a customer takes the next step.';
+  }
+  if (/gym|fitness|yoga|pilates|studio|sports/.test(i)) {
+    return 'That caught my attention because turning online interest into an enquiry or booking usually depends on making the next step obvious.';
+  }
+  if (/school|college|education|academy|tuition|university|coaching/.test(i)) {
+    return 'That caught my attention because prospective students and parents often need a clear path from an initial question to the next step.';
+  }
+  return 'That caught my attention because small gaps around enquiries, follow-ups, or handoffs can create unnecessary friction even when the core business is working well.';
+}
+
+function makeStructure_(subject, opening, implication, idea, close) {
   return {
     subject: subject,
-    text: opening + '\n\n' + context + '\n\n' + idea + '\n\n' + close,
+    text: opening + '\n\n' + implication + '\n\n' + idea + '\n\n' + close,
     html:
-      '<p style="margin:0 0 14px;">' + escapeHtml_(opening) + '</p>' +
-      '<p style="margin:0 0 14px;">' + escapeHtml_(context) + '</p>' +
-      '<p style="margin:0 0 14px;">' + escapeHtml_(idea) + '</p>' +
+      '<p style="margin:0 0 12px;">' + escapeHtml_(opening) + '</p>' +
+      '<p style="margin:0 0 12px;">' + escapeHtml_(implication) + '</p>' +
+      '<p style="margin:0 0 12px;">' + escapeHtml_(idea) + '</p>' +
       '<p style="margin:0;">' + escapeHtml_(close) + '</p>'
   };
 }
@@ -247,7 +277,7 @@ function getPartDHypothesis_(lead) {
 
 function getPartDWhy_(lead) {
   const i = String(lead.industry || '').toLowerCase();
-  if (/property|real estate|realt/.test(i)) return 'If relevant, that could help make property-management enquiries easier to capture and qualify.';
+  if (/property|real estate|realt/.test(i)) return 'If relevant, that could make property-management enquiries easier to capture and qualify.';
   if (/dent|clinic|chiro|vet|medical|health/.test(i)) return 'If relevant, that could make the first step easier for new patients while giving the team cleaner information.';
   if (/hvac|plumb|electric|roof|auto|mechanic|repair|contractor/.test(i)) return 'If relevant, that could make incoming service requests easier to qualify and follow up.';
   if (/law|legal|attorney|lawyer/.test(i)) return 'If relevant, that could reduce some of the back-and-forth before a consultation.';
@@ -259,16 +289,7 @@ function getPartDWhy_(lead) {
 }
 
 function getPartDCapability_(lead) {
-  const i = String(lead.industry || '').toLowerCase();
-  if (/property|real estate|realt/.test(i)) return 'At VASHA, I am exploring practical digital solutions for businesses, including websites, custom systems and automation — this is the kind of workflow we could potentially design and build.';
-  if (/dent|clinic|chiro|vet|medical|health/.test(i)) return 'At VASHA, I am exploring practical digital solutions for businesses, including websites, custom software and automation — particularly where a smoother customer journey may be useful.';
-  if (/gym|fitness|yoga|pilates|studio|salon|barber|spa|nail|beauty/.test(i)) return 'At VASHA, I am exploring practical digital solutions for businesses, from customer-facing websites and booking flows to automation and internal systems.';
-  if (/hvac|plumb|electric|roof|auto|mechanic|repair|contractor|cleaning|pest/.test(i)) return 'At VASHA, I am exploring practical digital solutions for businesses, including websites, enquiry systems and workflow automation.';
-  if (/law|legal|attorney|lawyer|accounting|insurance|financial/.test(i)) return 'At VASHA, I am exploring practical digital solutions for businesses, including websites, custom systems and automation for information-heavy workflows.';
-  if (/manufactur|factory|industrial|wholesale|distribut|logistics|warehouse/.test(i)) return 'At VASHA, I am exploring practical digital solutions for businesses, including internal systems, custom software and workflow automation.';
-  if (/restaurant|cafe|caf|diner|bakery|food|catering/.test(i)) return 'At VASHA, I am exploring practical digital solutions for businesses, including customer-facing websites, enquiry flows and automation.';
-  if (/school|college|education|academy|tuition|university|coaching/.test(i)) return 'At VASHA, I am exploring practical digital solutions for businesses, including websites, enquiry systems, custom software and automation.';
-  return 'At VASHA, I am exploring practical digital solutions for businesses — from websites and custom software to automation and business systems.';
+  return 'At VASHA Technologies, I am building practical solutions around AI automation, custom software, and business systems.';
 }
 
 function escapeHtml_(value) {
