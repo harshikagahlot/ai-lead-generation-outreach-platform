@@ -19,10 +19,6 @@ const TRIGGER_PROPERTY_KEY = 'LEAD_GEN_CONTINUATION_TRIGGER_ID';
 const PLACES_PAGE_SIZE = 20;
 const PLACES_MAX_RESULTS_PER_QUERY = 60;
 
-// =========================================================================
-// JOB STATE
-// =========================================================================
-
 function getJobState() {
   const raw = PropertiesService.getScriptProperties().getProperty(JOB_PROPERTY_KEY);
   return raw ? JSON.parse(raw) : null;
@@ -36,15 +32,6 @@ function clearJobState() {
   PropertiesService.getScriptProperties().deleteProperty(JOB_PROPERTY_KEY);
 }
 
-// =========================================================================
-// PLACES SEARCH — ONE PAGE AT A TIME
-// =========================================================================
-
-/**
- * Fetches exactly one Places Text Search page.
- * The nextPageToken is persisted by the job so another execution can fetch
- * the next page later instead of collecting the whole search up front.
- */
 function fetchPlacesSearchPage(industry, location, pageToken, pageSize) {
   const apiKey = getPlacesApiKey();
   const url = 'https://places.googleapis.com/v1/places:searchText';
@@ -79,10 +66,6 @@ function fetchPlacesSearchPage(industry, location, pageToken, pageSize) {
     nextPageToken: json.nextPageToken || null
   };
 }
-
-// =========================================================================
-// STARTING A NEW JOB
-// =========================================================================
 
 function startNewLeadJob(industry, city, state, maxBusinesses) {
   const ui = SpreadsheetApp.getUi();
@@ -157,10 +140,6 @@ function startNewLeadJob(industry, city, state, maxBusinesses) {
   processBatch();
 }
 
-// =========================================================================
-// PROCESSING ONE RESUMABLE BATCH
-// =========================================================================
-
 function processBatch() {
   const startTime = new Date().getTime();
   const settings = getSettings();
@@ -185,23 +164,13 @@ function processBatch() {
     const elapsedSeconds = (new Date().getTime() - startTime) / 1000;
     if (elapsedSeconds > maxSeconds) break;
 
-    // ---------------------------------------------------------------
-    // If the currently discovered page is exhausted, fetch the next
-    // Places page only if the job still needs more results.
-    // ---------------------------------------------------------------
     if (job.nextIndex >= job.placeIds.length) {
       const reachedTarget = job.placeIds.length >= job.targetMaxBusinesses;
       const noMorePages = !job.nextPageToken;
 
       if (reachedTarget || noMorePages) break;
-
-      // Leave a safety margin so the page request itself cannot push the
-      // execution into the hard Apps Script timeout.
       if (elapsedSeconds > maxSeconds - 20) break;
 
-      // Google requires a short activation delay before a newly issued
-      // page token can be used. If this execution is already well separated
-      // from the previous page request, no meaningful delay is needed.
       const ageMs = new Date().getTime() - Number(job.lastPageFetchedAt || 0);
       if (ageMs < 2500) Utilities.sleep(2500 - ageMs);
 
@@ -247,7 +216,7 @@ function processBatch() {
     }
 
     const placeId = job.placeIds[job.nextIndex];
-    job.nextIndex++; // advance first so a killed execution does not repeat this ID
+    job.nextIndex++;
     processedThisBatch++;
 
     try {
@@ -299,7 +268,10 @@ function processBatch() {
       appendRawRow(lead);
       job.stats.checked++;
 
-      const qualification = evaluateQualification(!!lead.email, lead.websiteStatus);
+      // IMPORTANT: pass the actual email string to the qualification layer.
+      // Do not coerce it to true/false; email validation must inspect the
+      // actual address so real outreach emails can qualify.
+      const qualification = evaluateQualification(lead.email, lead.websiteStatus);
       if (qualification.qualified) {
         job.stats.qualified++;
         appendQualifiedRow(lead);
@@ -315,7 +287,6 @@ function processBatch() {
       Logger.log('Error processing place ' + placeId + ': ' + e.message);
     }
 
-    // Persist after EVERY lead.
     saveJobState(job);
   }
 
@@ -362,10 +333,6 @@ function processBatch() {
   }
 }
 
-// =========================================================================
-// AUTO-CONTINUATION VIA TIME-DRIVEN TRIGGER
-// =========================================================================
-
 function scheduleContinuation() {
   clearContinuationTrigger();
   const trigger = ScriptApp.newTrigger('processBatch')
@@ -401,10 +368,6 @@ function notifyJobComplete(job) {
     Logger.log('Job complete (ran via trigger, no UI available): ' + JSON.stringify(job.stats));
   }
 }
-
-// =========================================================================
-// MENU ACTIONS: manual continue / status / cancel
-// =========================================================================
 
 function menuContinueLeadJob() {
   const job = getJobState();
