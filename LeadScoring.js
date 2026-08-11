@@ -1,25 +1,12 @@
 /**
  * LeadScoring.gs
  * -----------------------------------------------------------------------
- * Turns website status + email presence + Google rating/review signals
- * into a single 0–100 score, and determines whether a lead qualifies.
+ * Lead score + qualification + outreach readiness logic.
  *
- * Point values live in Config.js (SCORING_RULES) so they can be tuned
- * without touching this logic. The qualification rule (which statuses
- * count as "qualifying") is also in Config.js (QUALIFYING_WEBSITE_STATUSES).
+ * Qualification is intentionally strict on email quality: a non-empty email
+ * is NOT enough. isValidOutreachEmail() must approve it.
  */
 
-/**
- * @param {object} params
- *   websiteStatus: one of WEBSITE_STATUS.*
- *   hasEmail: boolean
- *   rating: number|null
- *   reviewCount: number|null
- *   hasRecentReview: boolean (optional signal; defaults false if unknown)
- *   emailType: string (optional, 'Named Person' or 'Generic Inbox')
- *   readinessScore: number (optional)
- * @returns {number} score capped at 0-100
- */
 function computeLeadScore(params) {
   let score = 0;
 
@@ -29,14 +16,13 @@ function computeLeadScore(params) {
     case WEBSITE_STATUS.VERY_OUTDATED: score += SCORING_RULES.VERY_OUTDATED; break;
     case WEBSITE_STATUS.OUTDATED: score += SCORING_RULES.OUTDATED; break;
     case WEBSITE_STATUS.BASIC: score += SCORING_RULES.BASIC; break;
-    default: break; // Good / Excellent contribute 0
+    default: break;
   }
 
   if (params.hasEmail) score += SCORING_RULES.HAS_EMAIL;
   if (params.rating && params.rating > 4.5) score += SCORING_RULES.RATING_ABOVE_4_5;
   if (params.reviewCount && params.reviewCount >= 50) score += SCORING_RULES.REVIEWS_50_PLUS;
   if (params.hasRecentReview) score += SCORING_RULES.RECENT_REVIEW;
-  
   if (params.emailType === 'Named Person') score += (SCORING_RULES.NAMED_PERSON || 15);
   if (params.readinessScore >= 70) score += (SCORING_RULES.HIGH_READINESS || 20);
 
@@ -44,62 +30,37 @@ function computeLeadScore(params) {
 }
 
 /**
- * Decides whether a lead is qualified per the mandatory rule:
- * Public Email is REQUIRED. Website quality does not disqualify a lead.
- * Returns { qualified: boolean, reason: string }
+ * Public email is required AND must pass the outreach-quality validator.
  */
-function evaluateQualification(hasEmail, websiteStatus) {
-  if (!hasEmail) {
-    return { qualified: false, reason: 'No public email found' };
+function evaluateQualification(email, websiteStatus) {
+  if (!isValidOutreachEmail(email)) {
+    return { qualified: false, reason: email ? 'Invalid or suspicious public email' : 'No public email found' };
   }
   return { qualified: true, reason: '' };
 }
 
-/**
- * Evaluates whether a lead contains at least ONE genuinely concrete and specific observation.
- * Qualifying observations:
- * 1. A real website technical flag (HTTP error, broken link, missing SSL, mobile viewport, flash, obsolete HTML, small page depth, older copyright year).
- * 2. OR a genuinely notable business/reputation signal with meaningful review volume (rating >= 4.5 & reviews >= 50, OR rating >= 4.0 & reviews >= 15).
- * Weak/generic signals (generic praise, rating alone without review volume, missing observations) do NOT qualify.
- * @param {object} lead
- * @returns {boolean}
- */
 function hasConcreteObservation(lead) {
   if (!lead) return false;
-  
-  // 1. Specific website technical flags
+
   if (lead.notes && typeof lead.notes === 'string' && lead.notes.trim().length > 0) {
     const flags = lead.notes.split(';').map(s => s.trim().toLowerCase()).filter(Boolean);
     const specificTechnicalRegex = /http \d|did not respond|placeholder|href="#"|no https|viewport|flash|obsolete html|table-based|very small page|copyright year/;
     for (const flag of flags) {
-      if (specificTechnicalRegex.test(flag)) {
-        return true;
-      }
+      if (specificTechnicalRegex.test(flag)) return true;
     }
   }
 
-  // 2. Notable reputation signal (high rating WITH meaningful review volume)
   const rating = Number(lead.rating) || 0;
   const reviews = Number(lead.reviewCount) || 0;
-  if ((rating >= 4.5 && reviews >= 50) || (rating >= 4.0 && reviews >= 15)) {
-    return true;
-  }
+  if ((rating >= 4.5 && reviews >= 50) || (rating >= 4.0 && reviews >= 15)) return true;
 
   return false;
 }
 
-/**
- * Computes the Outreach Readiness Score.
- * @param {object} lead 
- * @param {string} emailType 
- * @param {string} recommendedChannel 
- * @returns {{score: number, hasConcreteObservation: boolean, notes: string}}
- */
 function computeOutreachReadiness(lead, emailType, recommendedChannel) {
   let score = 0;
   let notes = [];
 
-  // Channel & Email
   if (recommendedChannel === 'Email') {
     score += 40;
     notes.push('Good channel fit (Email)');
@@ -118,7 +79,6 @@ function computeOutreachReadiness(lead, emailType, recommendedChannel) {
     notes.push('Generic inbox (lower conversion)');
   }
 
-  // Website
   if (lead.websiteStatus === WEBSITE_STATUS.BROKEN || lead.websiteStatus === WEBSITE_STATUS.NO_WEBSITE) {
     notes.push('Website is broken or missing');
   } else {
@@ -126,7 +86,6 @@ function computeOutreachReadiness(lead, emailType, recommendedChannel) {
     notes.push('Website is active');
   }
 
-  // Check for concrete observation
   const concreteObs = hasConcreteObservation(lead);
   if (concreteObs) {
     score += 20;
