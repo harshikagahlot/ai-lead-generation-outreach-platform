@@ -223,6 +223,39 @@ function makeStructure_(subject, opening, implication, idea, close) {
   };
 }
 
+/**
+ * Returns the strongest concrete website/online observation from the lead notes.
+ * The qualification layer already defines what counts as a concrete observation;
+ * this helper only turns that existing note into usable outreach copy.
+ */
+function getStrongestObservation(notes, websiteStatus) {
+  const raw = String(notes || '').trim();
+  if (!raw) return '';
+
+  const flags = raw.split(';').map(s => s.trim()).filter(Boolean);
+  const ranked = [
+    { re: /http\s*\d{3}/i, text: 'the website analysis flagged an HTTP error response' },
+    { re: /did not respond|timeout|timed out/i, text: 'the website did not respond reliably during the check' },
+    { re: /placeholder/i, text: 'the site appears to contain placeholder content' },
+    { re: /href\s*=\s*["']#|href="#"/i, text: 'some links appear to point to placeholder destinations' },
+    { re: /no https/i, text: 'the site does not appear to use HTTPS' },
+    { re: /viewport/i, text: 'the site appears to be missing a mobile viewport configuration' },
+    { re: /flash/i, text: 'the site appears to rely on outdated Flash content' },
+    { re: /obsolete html/i, text: 'the site appears to use obsolete HTML patterns' },
+    { re: /table-based/i, text: 'the page appears to rely on table-based layout' },
+    { re: /very small page/i, text: 'the page appears unusually small or content-light' },
+    { re: /copyright year/i, text: 'the site appears to show an old copyright year' }
+  ];
+
+  for (const item of ranked) {
+    const match = flags.find(flag => item.re.test(flag));
+    if (match) return item.text;
+  }
+
+  // Preserve an existing concrete note rather than inventing a new observation.
+  return flags.find(flag => flag.length >= 8) || '';
+}
+
 function getPartDObservation_(lead) {
   if (lead.websiteStatus === WEBSITE_STATUS.NO_WEBSITE) return 'there does not appear to be a dedicated website listed for the business';
   const obs = getStrongestObservation(lead.notes, lead.websiteStatus);
